@@ -30,7 +30,7 @@ def to_sparse_batch(x: torch.Tensor, mask: torch.Tensor = None):
 
 class ROTPooling(nn.Module):
     def __init__(self, dim: int, a0: float = None, a1: float = None, a2: float = None, a3: float = None,
-                 num: int = 4, eps: float = 1e-8, f_method: str = 'badmm'):
+                 num: int = 4, eps: float = 1e-8, f_method: str = 'badmm-e'):
         super(ROTPooling, self).__init__()
         self.dim = dim
         self.eps = eps
@@ -92,7 +92,7 @@ class ROTPooling(nn.Module):
 
 class UOTPooling(nn.Module):
     def __init__(self, dim: int, a1: float = None, a2: float = None, a3: float = None,
-                 num: int = 4, eps: float = 1e-8, f_method: str = 'badmm'):
+                 num: int = 4, eps: float = 1e-8, f_method: str = 'badmm-e'):
         super(UOTPooling, self).__init__()
         self.dim = dim
         self.eps = eps

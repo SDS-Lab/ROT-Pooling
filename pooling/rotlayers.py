@@ -85,7 +85,7 @@ def uot_badmm(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
               a1: torch.Tensor, a2: torch.Tensor, a3: torch.Tensor,
               mask: torch.Tensor, num: int = 4, eps: float = 1e-8) -> torch.Tensor:
     """
-    Solving regularized optimal transport via Bregman ADMM algorithm
+    Solving regularized optimal transport via Bregman ADMM algorithm (entropic regularizer)
     :param x: (B, N, D), a matrix with N samples and each sample is D-dimensional
     :param p0: (B, 1, D), the marginal prior of dimensions
     :param q0: (B, N, 1), the marginal prior of samples
@@ -119,18 +119,22 @@ def uot_badmm(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
         y = (z + rho * log_t) / (a1 + rho)  # (B, N, D)
         log_s = (log_eta - torch.logsumexp(y, dim=2, keepdim=True)) * d1 + y
 
-        # update log_mu
-        y = (rho * log_mu + a2 * log_p0 - z1) / (rho + a2)  # (B, 1, D)
-        log_mu = y - torch.logsumexp(y, dim=2, keepdim=True)
-
-        # update log_eta
-        y = (rho * log_eta + a3 * log_q0 - z2) / (rho + a3)  # (B, N, 1)
-        log_eta = y - torch.logsumexp(y, dim=1, keepdim=True)
-
         # update dual variables
         t = torch.exp(log_t) * mask
         s = torch.exp(log_s) * mask
         z = z + rho * (t - s)
+
+        # update log_mu
+        log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
+        y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
+        log_mu = y - torch.logsumexp(y, dim=2, keepdim=True)
+
+        # update log_eta
+        log_eta2 = torch.log(torch.sum(t, dim=2, keepdim=True) + eps)
+        y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
+        log_eta = y - torch.logsumexp(y, dim=1, keepdim=True)
+
+        # update dual variables
         z1 = z1 + rho * (torch.exp(log_mu) - torch.sum(t, dim=1, keepdim=True))
         z2 = z2 + rho * (torch.exp(log_eta) - torch.sum(s, dim=2, keepdim=True))
 
@@ -141,7 +145,7 @@ def rot_badmm(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Ten
               a0: torch.Tensor, a1: torch.Tensor, a2: torch.Tensor, a3: torch.Tensor,
               mask: torch.Tensor, num: int = 4, eps: float = 1e-8) -> torch.Tensor:
     """
-    Solving regularized optimal transport via Bregman ADMM algorithm
+    Solving regularized optimal transport via Bregman ADMM algorithm (entropic regularizer)
     :param x: (B, N, D), a matrix with N samples and each sample is D-dimensional
     :param c1: (B, D, D), a matrix with size D x D
     :param c2: (B, N, N), a matrix with size N x N
@@ -182,18 +186,153 @@ def rot_badmm(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Ten
         y = (z + a0 * tmp2 + rho * log_t) / (a1 + rho)  # (B, N, D)
         log_s = (log_eta - torch.logsumexp(y, dim=2, keepdim=True)) * d1 + y
 
+        # update dual variables
+        t = torch.exp(log_t) * mask
+        s = torch.exp(log_s) * mask
+        z = z + rho * (t - s)
+
         # update log_mu
-        y = (rho * log_mu + a2 * log_p0 - z1) / (rho + a2)  # (B, 1, D)
+        log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
+        y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
         log_mu = y - torch.logsumexp(y, dim=2, keepdim=True)
 
         # update log_eta
-        y = (rho * log_eta + a3 * log_q0 - z2) / (rho + a3)  # (B, N, 1)
+        log_eta2 = torch.log(torch.sum(t, dim=2, keepdim=True) + eps)
+        y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
         log_eta = y - torch.logsumexp(y, dim=1, keepdim=True)
+
+        # update dual variables
+        z1 = z1 + rho * (torch.exp(log_mu) - torch.sum(t, dim=1, keepdim=True))
+        z2 = z2 + rho * (torch.exp(log_eta) - torch.sum(s, dim=2, keepdim=True))
+
+    return torch.exp(log_t) * mask
+
+
+def uot_badmm2(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
+               a1: torch.Tensor, a2: torch.Tensor, a3: torch.Tensor,
+               mask: torch.Tensor, num: int = 4, eps: float = 1e-8) -> torch.Tensor:
+    """
+    Solving regularized optimal transport via Bregman ADMM algorithm (quadratic regularizer)
+    :param x: (B, N, D), a matrix with N samples and each sample is D-dimensional
+    :param p0: (B, 1, D), the marginal prior of dimensions
+    :param q0: (B, N, 1), the marginal prior of samples
+    :param a1: (1, ), the weight of the entropic term
+    :param a2: (1, ), the weight of the KL term of p0
+    :param a3: (1, ), the weight of the KL term of q0
+    :param mask: (B, N, 1) a masking tensor
+    :param num: the number of Bregman ADMM iterations
+    :param eps: the epsilon to avoid numerical instability
+    :return:
+        t: (N, D), the optimal transport matrix
+    """
+    s = q0 * p0
+    t = q0 * p0
+    log_t = torch.log(q0 * p0 + eps)  # (B, N, D)
+    log_s = torch.log(q0 * p0 + eps)  # (B, N, D)
+    log_mu = torch.log(p0)  # (B, 1, D)
+    log_eta = torch.log(q0)  # (B, N, 1)
+    log_p0 = torch.log(p0)  # (B, 1, D)
+    log_q0 = torch.log(q0)  # (B, N, 1)
+    z = torch.zeros_like(log_t)  # (B, N, D)
+    z1 = torch.zeros_like(p0)  # (B, 1, D)
+    z2 = torch.zeros_like(q0)  # (B, N, 1)
+    d1 = torch.ones_like(p0)  # (B, 1, D)
+    n1 = torch.ones_like(q0)  # (B, N, 1)
+    rho = 1.0
+    for n in range(num):
+        # update logP
+        y = (x - a1 * s - z) / rho + log_s  # (B, N, D)
+        log_t = n1 * (log_mu - torch.logsumexp(y, dim=1, keepdim=True)) + y
+
+        # update logS
+        y = (z - a1 * t) / rho + log_t  # (B, N, D)
+        log_s = (log_eta - torch.logsumexp(y, dim=2, keepdim=True)) * d1 + y
 
         # update dual variables
         t = torch.exp(log_t) * mask
         s = torch.exp(log_s) * mask
         z = z + rho * (t - s)
+
+        # update log_mu
+        log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
+        y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
+        log_mu = y - torch.logsumexp(y, dim=2, keepdim=True)
+
+        # update log_eta
+        log_eta2 = torch.log(torch.sum(t, dim=2, keepdim=True) + eps)
+        y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
+        log_eta = y - torch.logsumexp(y, dim=1, keepdim=True)
+
+        # update dual variables
+        z1 = z1 + rho * (torch.exp(log_mu) - torch.sum(t, dim=1, keepdim=True))
+        z2 = z2 + rho * (torch.exp(log_eta) - torch.sum(s, dim=2, keepdim=True))
+
+    return torch.exp(log_t) * mask
+
+
+def rot_badmm2(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
+               a0: torch.Tensor, a1: torch.Tensor, a2: torch.Tensor, a3: torch.Tensor,
+               mask: torch.Tensor, num: int = 4, eps: float = 1e-8) -> torch.Tensor:
+    """
+    Solving regularized optimal transport via Bregman ADMM algorithm (quadratic regularizer)
+    :param x: (B, N, D), a matrix with N samples and each sample is D-dimensional
+    :param c1: (B, D, D), a matrix with size D x D
+    :param c2: (B, N, N), a matrix with size N x N
+    :param p0: (B, 1, D), the marginal prior of dimensions
+    :param q0: (B, N, 1), the marginal prior of samples
+    :param a0: (1, ), the weight of the GW term
+    :param a1: (1, ), the weight of the entropic term
+    :param a2: (1, ), the weight of the KL term of p0
+    :param a3: (1, ), the weight of the KL term of q0
+    :param mask: (B, N, 1) a masking tensor
+    :param num: the number of Bregman ADMM iterations
+    :param eps: the epsilon to avoid numerical instability
+    :return:
+        t: (N, D), the optimal transport matrix
+    """
+    s = q0 * p0
+    t = q0 * p0
+    log_t = torch.log(q0 * p0 + eps)  # (B, N, D)
+    log_s = torch.log(q0 * p0 + eps)  # (B, N, D)
+    log_mu = torch.log(p0)  # (B, 1, D)
+    log_eta = torch.log(q0)  # (B, N, 1)
+    log_p0 = torch.log(p0)  # (B, 1, D)
+    log_q0 = torch.log(q0)  # (B, N, 1)
+    z = torch.zeros_like(log_t)  # (B, N, D)
+    z1 = torch.zeros_like(p0)  # (B, 1, D)
+    z2 = torch.zeros_like(q0)  # (B, N, 1)
+    d1 = torch.ones_like(p0)  # (B, 1, D)
+    n1 = torch.ones_like(q0)  # (B, N, 1)
+    rho = 1.0
+    for n in range(num):
+        # update logP
+        tmp1 = torch.bmm(c2, torch.exp(log_s))
+        tmp2 = torch.bmm(tmp1, c1)
+        y = (x + a0 * tmp2 - a1 * s - z) / rho + log_s  # (B, N, D)
+        log_t = n1 * (log_mu - torch.logsumexp(y, dim=1, keepdim=True)) + y
+
+        # update logS
+        tmp1 = torch.bmm(c2, torch.exp(log_t))
+        tmp2 = torch.bmm(tmp1, c1)
+        y = (z + a0 * tmp2 - a1 * t) / rho + log_t  # (B, N, D)
+        log_s = (log_eta - torch.logsumexp(y, dim=2, keepdim=True)) * d1 + y
+
+        # update dual variables
+        t = torch.exp(log_t) * mask
+        s = torch.exp(log_s) * mask
+        z = z + rho * (t - s)
+
+        # update log_mu
+        log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
+        y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
+        log_mu = y - torch.logsumexp(y, dim=2, keepdim=True)
+
+        # update log_eta
+        log_eta2 = torch.log(torch.sum(t, dim=2, keepdim=True) + eps)
+        y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
+        log_eta = y - torch.logsumexp(y, dim=1, keepdim=True)
+
+        # update dual variables
         z1 = z1 + rho * (torch.exp(log_mu) - torch.sum(t, dim=1, keepdim=True))
         z2 = z2 + rho * (torch.exp(log_eta) - torch.sum(s, dim=2, keepdim=True))
 
@@ -297,11 +436,11 @@ class ROT(nn.Module):
     :param num: int, the number of iterations
     :param eps: float, default: 1.0e-8
         The epsilon avoiding numerical instability
-    :param f_method: str, default: 'badmm'
-        The feed-forward method, badmm or sinkhorn
+    :param f_method: str, default: 'badmm-e'
+        The feed-forward method, badmm-e, badmm-q, or sinkhorn
     """
 
-    def __init__(self, num: int = 4, eps: float = 1e-8, f_method: str = 'badmm'):
+    def __init__(self, num: int = 4, eps: float = 1e-8, f_method: str = 'badmm-e'):
         super(ROT, self).__init__()
         self.num = num
         self.eps = eps
@@ -311,8 +450,10 @@ class ROT(nn.Module):
         """
         Solving regularized OT problem
         """
-        if self.f_method == 'badmm':
+        if self.f_method == 'badmm-e':
             t = rot_badmm(x, c1, c2, p0, q0, a0, a1, a2, a3, mask, self.num, self.eps)
+        elif self.f_method == 'badmm-q':
+            t = rot_badmm2(x, c1, c2, p0, q0, a0, a1, a2, a3, mask, self.num, self.eps)
         else:
             t = rot_sinkhorn(x, c1, c2, p0, q0, a0, a1, a2, a3, mask, self.num, inner=5, eps=self.eps)
         return t
@@ -327,11 +468,11 @@ class UOT(nn.Module):
     :param num: int, the number of iterations
     :param eps: float, default: 1.0e-8
         The epsilon avoiding numerical instability
-    :param f_method: str, default: 'badmm'
-        The feed-forward method, badmm or sinkhorn
+    :param f_method: str, default: 'badmm-e'
+        The feed-forward method, badmm-e, badmm-q or sinkhorn
     """
 
-    def __init__(self, num: int = 4, eps: float = 1e-8, f_method: str = 'badmm'):
+    def __init__(self, num: int = 4, eps: float = 1e-8, f_method: str = 'badmm-e'):
         super(UOT, self).__init__()
         self.num = num
         self.eps = eps
@@ -341,8 +482,10 @@ class UOT(nn.Module):
         """
         Solving regularized OT problem
         """
-        if self.f_method == 'badmm':
+        if self.f_method == 'badmm-e':
             t = uot_badmm(x, p0, q0, a1, a2, a3, mask, self.num, self.eps)
+        elif self.f_method == 'badmm-q':
+            t = uot_badmm2(x, p0, q0, a1, a2, a3, mask, self.num, self.eps)
         else:
             t = uot_sinkhorn(x, p0, q0, a1, a2, a3, mask, self.num, eps=self.eps)
         return t
