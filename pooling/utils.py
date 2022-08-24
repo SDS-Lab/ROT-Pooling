@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib
-from typing import List
+from typing import List, Union
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 plt.rcParams.update({'font.size': 12})
@@ -58,6 +58,21 @@ def visualize_pooling(data_list: List[np.ndarray], dst: str, vmin: float = None,
     else:
         sns.heatmap(tmp, mask=mask, linewidth=1, square=True, cmap="YlGnBu")
     plt.axis('off')
+    plt.tight_layout()
+    plt.savefig(dst)
+    plt.close()
+
+
+def visualize_errorbar_curve(xs: Union[np.ndarray, List], ms: np.ndarray, vs: np.ndarray, colors: List[str],
+                             labels: List[str], xlabel: str, ylabel: str, dst: str):
+    plt.figure(figsize=(5, 5))
+    for i in range(len(colors)):
+        plt.plot(xs, ms[:, i], 'o-', label=labels[i], color=colors[i])
+        plt.fill_between(xs, ms[:, i] - vs[:, i], ms[:, i] + vs[:, i], color=colors[i], alpha=0.2)
+    plt.legend(loc='upper left')
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.grid()
     plt.tight_layout()
     plt.savefig(dst)
     plt.close()
