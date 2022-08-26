@@ -126,15 +126,15 @@ def uot_badmm(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
         z = z + rho * (t - s)
 
         # update log_mu
-        log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
-        y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
-        # y = (rho * log_mu + a2 * log_p0 - z1) / (rho + a2)  # (B, 1, D)
+        # log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
+        # y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
+        y = (rho * log_mu + a2 * log_p0 - z1) / (rho + a2)  # (B, 1, D)
         log_mu = y - torch.logsumexp(y, dim=2, keepdim=True)
 
         # update log_eta
-        log_eta2 = torch.log(torch.sum(t, dim=2, keepdim=True) + eps)
-        y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
-        # y = (rho * log_eta + a3 * log_q0 - z2) / (rho + a3)  # (B, N, 1)
+        # log_eta2 = torch.log(torch.sum(t, dim=2, keepdim=True) + eps)
+        # y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
+        y = (rho * log_eta + a3 * log_q0 - z2) / (rho + a3)  # (B, N, 1)
         log_eta = y - torch.logsumexp(y, dim=1, keepdim=True)
 
         # update dual variables
@@ -195,15 +195,15 @@ def rot_badmm(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Ten
         z = z + rho * (t - s)
 
         # update log_mu
-        log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
-        y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
-        # y = (rho * log_mu + a2 * log_p0 - z1) / (rho + a2)  # (B, 1, D)
+        # log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
+        # y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
+        y = (rho * log_mu + a2 * log_p0 - z1) / (rho + a2)  # (B, 1, D)
         log_mu = y - torch.logsumexp(y, dim=2, keepdim=True)
 
         # update log_eta
-        log_eta2 = torch.log(torch.sum(t, dim=2, keepdim=True) + eps)
-        y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
-        # y = (rho * log_eta + a3 * log_q0 - z2) / (rho + a3)  # (B, N, 1)
+        # log_eta2 = torch.log(torch.sum(t, dim=2, keepdim=True) + eps)
+        # y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
+        y = (rho * log_eta + a3 * log_q0 - z2) / (rho + a3)  # (B, N, 1)
         log_eta = y - torch.logsumexp(y, dim=1, keepdim=True)
 
         # update dual variables
@@ -259,15 +259,15 @@ def uot_badmm2(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
         z = z + rho * (t - s)
 
         # update log_mu
-        log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
-        y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
-        # y = (rho * log_mu + a2 * log_p0 - z1) / (rho + a2)  # (B, 1, D)
+        # log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
+        # y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
+        y = (rho * log_mu + a2 * log_p0 - z1) / (rho + a2)  # (B, 1, D)
         log_mu = y - torch.logsumexp(y, dim=2, keepdim=True)
 
         # update log_eta
-        log_eta2 = torch.log(torch.sum(t, dim=2, keepdim=True) + eps)
-        y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
-        # y = (rho * log_eta + a3 * log_q0 - z2) / (rho + a3)  # (B, N, 1)
+        # log_eta2 = torch.log(torch.sum(t, dim=2, keepdim=True) + eps)
+        # y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
+        y = (rho * log_eta + a3 * log_q0 - z2) / (rho + a3)  # (B, N, 1)
         log_eta = y - torch.logsumexp(y, dim=1, keepdim=True)
 
         # update dual variables
@@ -330,15 +330,15 @@ def rot_badmm2(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Te
         z = z + rho * (t - s)
 
         # update log_mu
-        log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
-        y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
-        # y = (rho * log_mu + a2 * log_p0 - z1) / (rho + a2)  # (B, 1, D)
+        # log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
+        # y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
+        y = (rho * log_mu + a2 * log_p0 - z1) / (rho + a2)  # (B, 1, D)
         log_mu = y - torch.logsumexp(y, dim=2, keepdim=True)
 
         # update log_eta
-        log_eta2 = torch.log(torch.sum(t, dim=2, keepdim=True) + eps)
-        y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
-        # y = (rho * log_eta + a3 * log_q0 - z2) / (rho + a3)  # (B, N, 1)
+        # log_eta2 = torch.log(torch.sum(t, dim=2, keepdim=True) + eps)
+        # y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
+        y = (rho * log_eta + a3 * log_q0 - z2) / (rho + a3)  # (B, N, 1)
         log_eta = y - torch.logsumexp(y, dim=1, keepdim=True)
 
         # update dual variables
