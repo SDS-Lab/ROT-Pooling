@@ -29,13 +29,15 @@ def to_sparse_batch(x: torch.Tensor, mask: torch.Tensor = None):
 
 
 class ROTPooling(nn.Module):
-    def __init__(self, dim: int, a0: float = None, a1: float = None, a2: float = None, a3: float = None,
-                 num: int = 4, eps: float = 1e-8, f_method: str = 'badmm-e'):
+    def __init__(self, dim: int, a0: float = None, a1: float = None, a2: float = None, a3: float = None, num: int = 4,
+                 eps: float = 1e-8, f_method: str = 'badmm-e', p0: str = 'fixed', q0: str = 'fixed'):
         super(ROTPooling, self).__init__()
         self.dim = dim
         self.eps = eps
         self.num = num
         self.f_method = f_method
+        self.p0 = p0
+        self.q0 = q0
 
         if a0 is None:
             self.a0 = nn.Parameter(0.1 * torch.randn(1, 1), requires_grad=True)
@@ -74,7 +76,10 @@ class ROTPooling(nn.Module):
         :return:
             a pooling result with size (K, D)
         """
-        q0 = softmax(self.linear_r2(self.tanh(self.linear_r1(x))), batch)  # (N, 1)
+        if self.q0 != 'fixed':
+            q0 = softmax(self.linear_r2(self.tanh(self.linear_r1(x))), batch)  # (N, 1)
+        else:
+            q0 = softmax(torch.zeros_like(x[:, 0].unsqueeze(1)), batch)  # (N, 1)
         x, mask = to_dense_batch(x, batch)  # (B, Nmax, D)
         mask = mask.unsqueeze(2)  # (B, Nmax, 1)
         q0, _ = to_dense_batch(q0, batch)  # (B, Nmax, 1)
@@ -91,13 +96,15 @@ class ROTPooling(nn.Module):
 
 
 class UOTPooling(nn.Module):
-    def __init__(self, dim: int, a1: float = None, a2: float = None, a3: float = None,
-                 num: int = 4, eps: float = 1e-8, f_method: str = 'badmm-e'):
+    def __init__(self, dim: int, a1: float = None, a2: float = None, a3: float = None, num: int = 4,
+                 eps: float = 1e-8, f_method: str = 'badmm-e', p0: str = 'fixed', q0: str = 'fixed'):
         super(UOTPooling, self).__init__()
         self.dim = dim
         self.eps = eps
         self.num = num
         self.f_method = f_method
+        self.p0 = p0
+        self.q0 = q0
 
         if a1 is None:
             self.a1 = nn.Parameter(0.1 * torch.randn(1, 1), requires_grad=True)
@@ -131,7 +138,10 @@ class UOTPooling(nn.Module):
         :return:
             a pooling result with size (K, D)
         """
-        q0 = softmax(self.linear_r2(self.tanh(self.linear_r1(x))), batch)  # (N, 1)
+        if self.q0 != 'fixed':
+            q0 = softmax(self.linear_r2(self.tanh(self.linear_r1(x))), batch)   # (N, 1)
+        else:
+            q0 = softmax(torch.zeros_like(x[:, 0].unsqueeze(1)), batch)  # (N, 1)
         x, mask = to_dense_batch(x, batch)  # (B, Nmax, D)
         mask = mask.unsqueeze(2)  # (B, Nmax, 1)
         q0, _ = to_dense_batch(q0, batch)  # (B, Nmax, 1)
