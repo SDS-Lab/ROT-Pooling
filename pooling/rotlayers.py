@@ -34,6 +34,7 @@ def uot_sinkhorn(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
         a = a2 / (a2 + a11) * (a / a11 + log_p0 - log_p)
         b = a3 / (a3 + a11) * (b / a11 + log_q0 - log_q)
         y = -cost / a11 + a + b
+
     t = torch.exp(y) * mask
     return t
 
@@ -102,9 +103,9 @@ def uot_badmm(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
     log_t = torch.log(q0 * p0 + eps)  # (B, N, D)
     log_s = torch.log(q0 * p0 + eps)  # (B, N, D)
     log_mu = torch.log(p0)  # (B, 1, D)
-    log_eta = torch.log(q0)  # (B, N, 1)
+    log_eta = torch.log(q0 + eps)  # (B, N, 1)
     log_p0 = torch.log(p0)  # (B, 1, D)
-    log_q0 = torch.log(q0)  # (B, N, 1)
+    log_q0 = torch.log(q0 + eps)  # (B, N, 1)
     z = torch.zeros_like(log_t)  # (B, N, D)
     z1 = torch.zeros_like(p0)  # (B, 1, D)
     z2 = torch.zeros_like(q0)  # (B, N, 1)
@@ -167,9 +168,9 @@ def rot_badmm(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Ten
     log_t = torch.log(q0 * p0 + eps)  # (B, N, D)
     log_s = torch.log(q0 * p0 + eps)  # (B, N, D)
     log_mu = torch.log(p0)  # (B, 1, D)
-    log_eta = torch.log(q0)  # (B, N, 1)
+    log_eta = torch.log(q0 + eps)  # (B, N, 1)
     log_p0 = torch.log(p0)  # (B, 1, D)
-    log_q0 = torch.log(q0)  # (B, N, 1)
+    log_q0 = torch.log(q0 + eps)  # (B, N, 1)
     z = torch.zeros_like(log_t)  # (B, N, D)
     z1 = torch.zeros_like(p0)  # (B, 1, D)
     z2 = torch.zeros_like(q0)  # (B, N, 1)
@@ -235,9 +236,9 @@ def uot_badmm2(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
     log_t = torch.log(q0 * p0 + eps)  # (B, N, D)
     log_s = torch.log(q0 * p0 + eps)  # (B, N, D)
     log_mu = torch.log(p0)  # (B, 1, D)
-    log_eta = torch.log(q0)  # (B, N, 1)
+    log_eta = torch.log(q0 + eps)  # (B, N, 1)
     log_p0 = torch.log(p0)  # (B, 1, D)
-    log_q0 = torch.log(q0)  # (B, N, 1)
+    log_q0 = torch.log(q0 + eps)  # (B, N, 1)
     z = torch.zeros_like(log_t)  # (B, N, D)
     z1 = torch.zeros_like(p0)  # (B, 1, D)
     z2 = torch.zeros_like(q0)  # (B, N, 1)
