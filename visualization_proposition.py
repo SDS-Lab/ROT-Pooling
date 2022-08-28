@@ -6,9 +6,11 @@ import torch
 B = 1
 N = 10
 D = 5
-a_max = 1e4
-a_min = 0
 k = 500
+a_max = 1e4 * torch.ones(k)
+a_min = torch.zeros(k)
+rho_max = 5e2 * torch.ones(k)
+rho_min = torch.ones(k)
 eps = 0
 names = ['mean', 'max', 'att']
 
@@ -33,9 +35,9 @@ for n in range(N):
 pools = [torch.t(pool_mean), torch.t(pool_max), torch.t(pool_att)]
 
 # sinkhorn setting: p0, q0, a1, a2, a3, num, rho
-set_mean = [p0, q0, a_max, a_max, a_max, k, 5e2]
-set_max = [p0, q0, a_min, a_min, a_max, k, 1]
-set_att = [p0, qa, a_max, a_max, a_max, k, 5e2]
+set_mean = [p0, q0, a_max, a_max, a_max, k, rho_max]
+set_max = [p0, q0, a_min, a_min, a_max, k, rho_min]
+set_att = [p0, qa, a_max, a_max, a_max, k, rho_max]
 sets = [set_mean, set_max, set_att]
 trans1 = []
 trans2 = []
@@ -49,7 +51,7 @@ for i in range(3):
                                     c2=c2,
                                     p0=sets[i][0],
                                     q0=sets[i][1],
-                                    a0=torch.tensor(0),
+                                    a0=torch.zeros(k),
                                     a1=sets[i][2],
                                     a2=sets[i][3],
                                     a3=sets[i][4],
@@ -64,14 +66,14 @@ for i in range(3):
                                  c2=c2,
                                  p0=sets[i][0],
                                  q0=sets[i][1],
-                                 a0=torch.tensor(0),
+                                 a0=torch.zeros(k),
                                  a1=sets[i][2],
                                  a2=sets[i][3],
                                  a3=sets[i][4],
+                                 rho=sets[i][6],
                                  mask=mask,
                                  num=sets[i][5],
-                                 eps=eps,
-                                 rho=sets[i][6])
+                                 eps=eps)
     transE /= transE.sum()
     trans2.append(torch.t(transE[0, :, :]))
 
@@ -80,14 +82,14 @@ for i in range(3):
                                   c2=c2,
                                   p0=sets[i][0],
                                   q0=sets[i][1],
-                                  a0=torch.tensor(0),
+                                  a0=torch.zeros(k),
                                   a1=sets[i][2],
                                   a2=sets[i][3],
                                   a3=sets[i][4],
+                                  rho=sets[i][6],
                                   mask=mask,
                                   num=sets[i][5],
-                                  eps=eps,
-                                  rho=sets[i][6])
+                                  eps=eps)
     transQ /= transQ.sum()
     trans3.append(torch.t(transQ[0, :, :]))
 

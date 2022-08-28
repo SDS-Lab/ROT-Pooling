@@ -7,6 +7,7 @@ import numpy as np
 a0 = 1
 a1 = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1e4]
 a2 = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1e4]
+rho = 1
 k = 500
 eps = 0
 
@@ -29,9 +30,9 @@ for i in range(len(a1)):
         transS = rotlayers.uot_sinkhorn(x=X,
                                         p0=p0,
                                         q0=q0,
-                                        a1=torch.tensor(a1[i]),
-                                        a2=torch.tensor(a2[j]),
-                                        a3=torch.tensor(a2[j]),
+                                        a1=torch.tensor([a1[i]]),
+                                        a2=torch.tensor([a2[j]]),
+                                        a3=torch.tensor([a2[j]]),
                                         mask=mask,
                                         num=k)
         sinkhorn_map[i, j, 0] = transS.sum().numpy()
@@ -39,9 +40,10 @@ for i in range(len(a1)):
         transE = rotlayers.uot_badmm(x=X,
                                      p0=p0,
                                      q0=q0,
-                                     a1=torch.tensor(a1[i]),
-                                     a2=torch.tensor(a2[j]),
-                                     a3=torch.tensor(a2[j]),
+                                     a1=torch.tensor([a1[i]]),
+                                     a2=torch.tensor([a2[j]]),
+                                     a3=torch.tensor([a2[j]]),
+                                     rho=torch.tensor([rho]),
                                      mask=mask,
                                      num=k)
         badmm1_map[i, j, 0] = transE.sum().numpy()
@@ -49,9 +51,10 @@ for i in range(len(a1)):
         transQ = rotlayers.uot_badmm2(x=X,
                                       p0=p0,
                                       q0=q0,
-                                      a1=torch.tensor(a1[i]),
-                                      a2=torch.tensor(a2[j]),
-                                      a3=torch.tensor(a2[j]),
+                                      a1=torch.tensor([a1[i]]),
+                                      a2=torch.tensor([a2[j]]),
+                                      a3=torch.tensor([a2[j]]),
+                                      rho=torch.tensor([rho]),
                                       mask=mask,
                                       num=k)
         badmm2_map[i, j, 0] = transQ.sum().numpy()
@@ -63,10 +66,10 @@ for i in range(len(a1)):
                                         c2=c2,
                                         p0=p0,
                                         q0=q0,
-                                        a0=torch.tensor(a0),
-                                        a1=torch.tensor(a1[i]),
-                                        a2=torch.tensor(a2[j]),
-                                        a3=torch.tensor(a2[j]),
+                                        a0=torch.tensor([a0]),
+                                        a1=torch.tensor([a1[i]]),
+                                        a2=torch.tensor([a2[j]]),
+                                        a3=torch.tensor([a2[j]]),
                                         mask=mask,
                                         num=k)
         sinkhorn_map[i, j, 1] = transS.sum().numpy()
@@ -76,10 +79,11 @@ for i in range(len(a1)):
                                      c2=c2,
                                      p0=p0,
                                      q0=q0,
-                                     a0=torch.tensor(a0),
-                                     a1=torch.tensor(a1[i]),
-                                     a2=torch.tensor(a2[j]),
-                                     a3=torch.tensor(a2[j]),
+                                     a0=torch.tensor([a0]),
+                                     a1=torch.tensor([a1[i]]),
+                                     a2=torch.tensor([a2[j]]),
+                                     a3=torch.tensor([a2[j]]),
+                                     rho=torch.tensor([rho]),
                                      mask=mask,
                                      num=k)
         badmm1_map[i, j, 1] = transE.sum().numpy()
@@ -89,10 +93,11 @@ for i in range(len(a1)):
                                       c2=c2,
                                       p0=p0,
                                       q0=q0,
-                                      a0=torch.tensor(a0),
-                                      a1=torch.tensor(a1[i]),
-                                      a2=torch.tensor(a2[j]),
-                                      a3=torch.tensor(a2[j]),
+                                      a0=torch.tensor([a0]),
+                                      a1=torch.tensor([a1[i]]),
+                                      a2=torch.tensor([a2[j]]),
+                                      a3=torch.tensor([a2[j]]),
+                                      rho=torch.tensor([rho]),
                                       mask=mask,
                                       num=k)
         badmm2_map[i, j, 1] = transQ.sum().numpy()

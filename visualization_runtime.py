@@ -20,10 +20,11 @@ if run:
     n_trial = 50
     eps = 0
     D = 5
-    a0 = torch.tensor(1)
-    a1 = torch.tensor(1)
-    a2 = torch.tensor(1)
-    a3 = torch.tensor(1)
+    a0 = torch.tensor([1])
+    a1 = torch.tensor([1])
+    a2 = torch.tensor([1])
+    a3 = torch.tensor([1])
+    rho = torch.tensor([1])
     runtime_N = np.zeros((len(Ns), n_trial, 3, 2))
     runtime_K = np.zeros((len(Ks), n_trial, 3, 2))
 
@@ -63,6 +64,7 @@ if run:
                                     a1=a1,
                                     a2=a2,
                                     a3=a3,
+                                    rho=rho,
                                     mask=mask,
                                     num=k)
             runtime_N[i, n, 1, 0] = (time.time() - since) / B
@@ -77,6 +79,7 @@ if run:
                                      a1=a1,
                                      a2=a2,
                                      a3=a3,
+                                     rho=rho,
                                      mask=mask,
                                      num=k)
             runtime_N[i, n, 2, 0] = (time.time() - since) / B
@@ -99,6 +102,7 @@ if run:
                                     a1=a1,
                                     a2=a2,
                                     a3=a3,
+                                    rho=rho,
                                     mask=mask,
                                     num=k)
             runtime_N[i, n, 1, 1] = (time.time() - since) / B
@@ -110,6 +114,7 @@ if run:
                                      a1=a1,
                                      a2=a2,
                                      a3=a3,
+                                     rho=rho,
                                      mask=mask,
                                      num=k)
             runtime_N[i, n, 2, 1] = (time.time() - since) / B
@@ -148,6 +153,7 @@ if run:
                                     a1=a1,
                                     a2=a2,
                                     a3=a3,
+                                    rho=rho,
                                     mask=mask,
                                     num=k)
             runtime_K[i, n, 1, 0] = (time.time() - since) / B
@@ -162,6 +168,7 @@ if run:
                                      a1=a1,
                                      a2=a2,
                                      a3=a3,
+                                     rho=rho,
                                      mask=mask,
                                      num=k)
             runtime_K[i, n, 2, 0] = (time.time() - since) / B
@@ -184,6 +191,7 @@ if run:
                                     a1=a1,
                                     a2=a2,
                                     a3=a3,
+                                    rho=rho,
                                     mask=mask,
                                     num=k)
             runtime_K[i, n, 1, 1] = (time.time() - since) / B
@@ -195,6 +203,7 @@ if run:
                                      a1=a1,
                                      a2=a2,
                                      a3=a3,
+                                     rho=rho,
                                      mask=mask,
                                      num=k)
             runtime_K[i, n, 2, 1] = (time.time() - since) / B
