@@ -238,5 +238,6 @@ class UOTPooling(nn.Module):
         if a3.shape[0] == 1:
             a3 = a3.repeat(self.num)
         trans = self.uot(x, p0, q0, a1, a2, a3, rho, mask)  # (B, Nmax, D)
-        frot = self.dim * x * trans * mask  # (B, Nmax, D)
+        # frot = self.dim * x * trans * mask  # (B, Nmax, D)
+        frot = x * trans * mask  # (B, Nmax, D)
         return torch.sum(frot, dim=1, keepdim=False)  # (B, D)
