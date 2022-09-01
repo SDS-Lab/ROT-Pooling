@@ -22,7 +22,7 @@ def uot_sinkhorn(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
     t = (q0 * p0) * mask  # （B, N, D）
     log_p0 = torch.log(p0)  # (B, 1, D)
     log_q0 = torch.log(q0 + eps) * mask  # (B, N, 1)
-    tau = 1.0
+    tau = 0.0
     cost = (-x - tau * torch.log(t + eps)) * mask  # (B, N, D)
     a = torch.zeros_like(p0)  # (B, 1, D)
     b = torch.zeros_like(q0) * mask  # (B, N, 1)
