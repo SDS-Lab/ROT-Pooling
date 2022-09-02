@@ -8,7 +8,7 @@ a0 = 1
 a1 = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1e4]
 a2 = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 1e1, 1e2, 1e3, 1e4]
 rho = 1
-k = 500
+k = 400
 eps = 0
 
 B = 1
@@ -17,7 +17,7 @@ D = 5
 X = torch.randn(B, N, D)
 c1 = torch.bmm(X.permute(0, 2, 1), X) / X.shape[1]  # (B, D, D)
 c2 = torch.bmm(X, X.permute(0, 2, 1)) / X.shape[2]  # (B, N, N)
-mask = torch.ones(B, N, D)
+mask = torch.ones(B, N, D).type(torch.BoolTensor)
 p0 = torch.ones(B, 1, D) / D
 q0 = torch.ones(B, N, 1) / N
 
