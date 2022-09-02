@@ -527,17 +527,10 @@ def uot_badmm(x: torch.Tensor, log_u1: torch.Tensor, log_u2: torch.Tensor, a1: f
         log_tran = log_u1 + tmp1 - torch.logsumexp(tmp1, dim=1, keepdim=True)
         tmp2 = (z + rho * log_tran) / (a1 + rho)
         log_aux = tmp2 - torch.logsumexp(tmp2, dim=0, keepdim=True) + log_u2
-        # log_u1 = log_u1 - z1 / (rho + a2)
-        # log_u2 = log_u2 - z2 / (rho + a3)
-        # log_u1 = (rho * log_u1 + a2 * log_u10 - z1) / (rho + a2)
-        # log_u2 = (rho * log_u2 + a3 * log_u20 - z2) / (rho + a3)
-
         tmp3 = (rho * log_u1 + a2 * log_u10 - z1) / (rho + a2)  # (N, 1)
         log_u1 = tmp3 - torch.logsumexp(tmp3, dim=0, keepdim=True)
-
         tmp4 = (rho * log_u2 + a3 * log_u20 - z2) / (rho + a3)  # (1, D)
         log_u2 = tmp4 - torch.logsumexp(tmp4, dim=1, keepdim=True)
-
         tran = torch.exp(log_tran)
         aux = torch.exp(log_aux)
         z = z + rho * (tran - aux)
