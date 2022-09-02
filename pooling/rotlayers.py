@@ -125,7 +125,7 @@ def uot_badmm(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
         # update dual variables
         t = torch.exp(log_t) * mask
         s = torch.exp(log_s) * mask
-        z = (z + rho[n] * (t - s))
+        z = z + rho[n] * (t - s)
         # update log_mu
         # log_mu2 = torch.log(torch.sum(s, dim=1, keepdim=True) + eps)
         # y = (rho * log_mu + rho * log_mu2 + a2 * log_p0 - 2 * z1) / (2 * rho + a2)  # (B, 1, D)
@@ -164,28 +164,26 @@ def rot_badmm(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Ten
         t: (N, D), the optimal transport matrix
     """
     log_p0 = torch.log(p0)  # (B, 1, D)
-    log_q0 = torch.log(q0 + eps) * mask  # (B, N, 1)
+    log_q0 = torch.log(q0 + eps * (~mask)) * mask  # (B, N, 1)
     log_t = (log_q0 + log_p0) * mask  # (B, N, D)
     log_s = (log_q0 + log_p0) * mask  # (B, N, D)
     log_mu = torch.log(p0)  # (B, 1, D)
-    log_eta = torch.log(q0 + eps) * mask  # (B, N, 1)
+    log_eta = torch.log(q0 + eps * (~mask)) * mask  # (B, N, 1)
     z = torch.zeros_like(log_t)  # (B, N, D)
     z1 = torch.zeros_like(p0)  # (B, 1, D)
     z2 = torch.zeros_like(q0)  # (B, N, 1)
-    d1 = torch.ones_like(p0)  # (B, 1, D)
     for k in range(num):
         n = min([k, a1.shape[0] - 1])
         # update logP
         tmp1 = torch.matmul(c2, torch.exp(log_s) * mask)
         tmp2 = torch.matmul(tmp1, c1)
         y = (x + a0[n] * tmp2 - z) / rho[n] + log_s  # (B, N, D)
-        # log_t = mask * (log_mu - torch.logsumexp(y, dim=1, keepdim=True)) + y
-        log_t = mask * (log_mu - torch.log(torch.sum(torch.exp(y) * mask, dim=1, keepdim=True))) + y  # (B, N, D)
+        log_t = mask * (log_eta - torch.logsumexp(y, dim=2, keepdim=True)) + y  # (B, N, D)
         # update logS
         tmp1 = torch.matmul(c2, torch.exp(log_t) * mask)
         tmp2 = torch.matmul(tmp1, c1)
         y = (z + a0[n] * tmp2 + rho[n] * log_t) / (a1[n] + rho[n])  # (B, N, D)
-        log_s = mask * (log_eta - torch.logsumexp(y, dim=2, keepdim=True)) * d1 + y  # (B, N, D)
+        log_s = mask * (log_mu - torch.log(torch.sum(torch.exp(y) * mask, dim=1, keepdim=True))) + y  # (B, N, D)
         # update dual variables
         t = torch.exp(log_t) * mask
         s = torch.exp(log_s) * mask
@@ -201,8 +199,8 @@ def rot_badmm(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Ten
         y = ((rho[n] * log_eta + a3[n] * log_q0 - z2) / (rho[n] + a3[n])) * mask  # (B, N, 1)
         log_eta = (y - torch.log(torch.sum(torch.exp(y) * mask, dim=1, keepdim=True))) * mask  # (B, N, 1)
         # update dual variables
-        z1 = z1 + rho[n] * (torch.exp(log_mu) - torch.sum(t, dim=1, keepdim=True))  # (B, 1, D)
-        z2 = z2 + rho[n] * (torch.exp(log_eta) * mask - torch.sum(s, dim=2, keepdim=True)) * mask  # (B, N, 1)
+        z1 = z1 + rho[n] * (torch.exp(log_mu) - torch.sum(s, dim=1, keepdim=True))  # (B, 1, D)
+        z2 = z2 + rho[n] * (torch.exp(log_eta) * mask - torch.sum(t, dim=2, keepdim=True)) * mask  # (B, N, 1)
     return torch.exp(log_t) * mask
 
 
@@ -226,23 +224,22 @@ def uot_badmm2(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
         t: (N, D), the optimal transport matrix
     """
     log_p0 = torch.log(p0)  # (B, 1, D)
-    log_q0 = torch.log(q0 + eps) * mask  # (B, N, 1)
+    log_q0 = torch.log(q0 + eps * (~mask)) * mask  # (B, N, 1)
     log_t = (log_q0 + log_p0) * mask  # (B, N, D)
     log_s = (log_q0 + log_p0) * mask  # (B, N, D)
     log_mu = torch.log(p0)  # (B, 1, D)
-    log_eta = torch.log(q0 + eps) * mask  # (B, N, 1)
+    log_eta = torch.log(q0 + eps * (~mask)) * mask  # (B, N, 1)
     z = torch.zeros_like(log_t)  # (B, N, D)
     z1 = torch.zeros_like(p0)  # (B, 1, D)
     z2 = torch.zeros_like(q0)  # (B, N, 1)
-    d1 = torch.ones_like(p0)  # (B, 1, D)
     for k in range(num):
         n = min([k, a1.shape[0] - 1])
         # update logP
         y = (x - a1[n] * torch.exp(log_s) * mask - z) / rho[n] + log_s  # (B, N, D)
-        log_t = mask * (log_mu - torch.log(torch.sum(torch.exp(y) * mask, dim=1, keepdim=True))) + y  # (B, N, D)
+        log_t = mask * (log_eta - torch.logsumexp(y, dim=2, keepdim=True)) + y  # (B, N, D)
         # update logS
         y = (z - a1[n] * torch.exp(log_t) * mask) / rho[n] + log_t  # (B, N, D)
-        log_s = mask * (log_eta - torch.logsumexp(y, dim=2, keepdim=True)) * d1 + y  # (B, N, D)
+        log_s = mask * (log_mu - torch.log(torch.sum(torch.exp(y) * mask, dim=1, keepdim=True))) + y  # (B, N, D)
         # update dual variables
         t = torch.exp(log_t) * mask
         s = torch.exp(log_s) * mask
@@ -258,8 +255,8 @@ def uot_badmm2(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
         y = ((rho[n] * log_eta + a3[n] * log_q0 - z2) / (rho[n] + a3[n])) * mask  # (B, N, 1)
         log_eta = (y - torch.log(torch.sum(torch.exp(y) * mask, dim=1, keepdim=True))) * mask  # (B, N, 1)
         # update dual variables
-        z1 = z1 + rho[n] * (torch.exp(log_mu) - torch.sum(t, dim=1, keepdim=True))  # (B, 1, D)
-        z2 = z2 + rho[n] * (torch.exp(log_eta) * mask - torch.sum(s, dim=2, keepdim=True)) * mask  # (B, N, 1)
+        z1 = z1 + rho[n] * (torch.exp(log_mu) - torch.sum(s, dim=1, keepdim=True))  # (B, 1, D)
+        z2 = z2 + rho[n] * (torch.exp(log_eta) * mask - torch.sum(t, dim=2, keepdim=True)) * mask  # (B, N, 1)
     return torch.exp(log_t) * mask
 
 
@@ -286,27 +283,26 @@ def rot_badmm2(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Te
         t: (N, D), the optimal transport matrix
     """
     log_p0 = torch.log(p0)  # (B, 1, D)
-    log_q0 = torch.log(q0 + eps) * mask  # (B, N, 1)
+    log_q0 = torch.log(q0 + eps * (~mask)) * mask  # (B, N, 1)
     log_t = (log_q0 + log_p0) * mask  # (B, N, D)
     log_s = (log_q0 + log_p0) * mask  # (B, N, D)
     log_mu = torch.log(p0)  # (B, 1, D)
-    log_eta = torch.log(q0 + eps) * mask  # (B, N, 1)
+    log_eta = torch.log(q0 + eps * (~mask)) * mask  # (B, N, 1)
     z = torch.zeros_like(log_t)  # (B, N, D)
     z1 = torch.zeros_like(p0)  # (B, 1, D)
     z2 = torch.zeros_like(q0)  # (B, N, 1)
-    d1 = torch.ones_like(p0)  # (B, 1, D)
     for k in range(num):
         n = min([k, a1.shape[0] - 1])
         # update logP
         tmp1 = torch.matmul(c2, torch.exp(log_s) * mask)
         tmp2 = torch.matmul(tmp1, c1)
         y = (x + a0[n] * tmp2 - a1[n] * torch.exp(log_s) * mask - z) / rho[n] + log_s  # (B, N, D)
-        log_t = mask * (log_mu - torch.log(torch.sum(torch.exp(y) * mask, dim=1, keepdim=True))) + y  # (B, N, D)
+        log_t = mask * (log_eta - torch.logsumexp(y, dim=2, keepdim=True)) + y
         # update logS
         tmp1 = torch.matmul(c2, torch.exp(log_t) * mask)
         tmp2 = torch.matmul(tmp1, c1)
         y = (z + a0[n] * tmp2 - a1[n] * torch.exp(log_t) * mask) / rho[n] + log_t  # (B, N, D)
-        log_s = mask * (log_eta - torch.logsumexp(y, dim=2, keepdim=True)) * d1 + y
+        log_s = mask * (log_mu - torch.log(torch.sum(torch.exp(y) * mask, dim=1, keepdim=True))) + y  # (B, N, D)
         # update dual variables
         t = torch.exp(log_t) * mask
         s = torch.exp(log_s) * mask
@@ -322,8 +318,8 @@ def rot_badmm2(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Te
         y = ((rho[n] * log_eta + a3[n] * log_q0 - z2) / (rho[n] + a3[n])) * mask  # (B, N, 1)
         log_eta = (y - torch.log(torch.sum(torch.exp(y) * mask, dim=1, keepdim=True))) * mask  # (B, N, 1)
         # update dual variables
-        z1 = z1 + rho[n] * (torch.exp(log_mu) - torch.sum(t, dim=1, keepdim=True))  # (B, 1, D)
-        z2 = z2 + rho[n] * (torch.exp(log_eta) * mask - torch.sum(s, dim=2, keepdim=True)) * mask  # (B, N, 1)
+        z1 = z1 + rho[n] * (torch.exp(log_mu) - torch.sum(s, dim=1, keepdim=True))  # (B, 1, D)
+        z2 = z2 + rho[n] * (torch.exp(log_eta) * mask - torch.sum(t, dim=2, keepdim=True)) * mask  # (B, N, 1)
     return torch.exp(log_t) * mask
 
 
