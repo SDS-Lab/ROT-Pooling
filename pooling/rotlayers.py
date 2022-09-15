@@ -31,11 +31,8 @@ def uot_sinkhorn(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
     for k in range(num):
         n = min([k, a1.shape[0] - 1])
         a11 = a1[n] + tau
-        # log_p = torch.logsumexp(y, dim=1, keepdim=True)   # (B, 1, D)
         ymin, _ = torch.min(y, dim=1, keepdim=True)
-        ymax, _ = torch.max(y - mask * ymin + ymin, dim=1, keepdim=True)  # (B, 1, D)
-        # ymax, _ = torch.max(y + mask * 1e8 - 1e8, dim=1, keepdim=True)  # (B, 1, D)
-        # print(ymax)
+        ymax, _ = torch.max(ymin - mask * ymin + y, dim=1, keepdim=True)  # (B, 1, D)
         log_p = torch.log(torch.sum(torch.exp((y - ymax) * mask) * mask, dim=1, keepdim=True)) + ymax   # (B, 1, D)
         log_q = torch.logsumexp(y, dim=2, keepdim=True) * mask  # (B, N, 1)
         a = a2[n] / (a2[n] + a11) * (a / a11 + log_p0 - log_p)
@@ -80,10 +77,8 @@ def rot_sinkhorn(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.
         b = torch.zeros_like(q0)  # (B, N, 1)
         y = -cost / a11  # (B, N, D)
         for k in range(inner):
-            # log_p = torch.logsumexp(y, dim=1, keepdim=True)   # (B, 1, D)
-            # ymax, _ = torch.max(y, dim=1, keepdim=True)  # (B, 1, D)
             ymin, _ = torch.min(y, dim=1, keepdim=True)
-            ymax, _ = torch.max(y - mask * ymin + ymin, dim=1, keepdim=True)  # (B, 1, D)
+            ymax, _ = torch.max(ymin - mask * ymin + y, dim=1, keepdim=True)  # (B, 1, D)
             log_p = torch.log(torch.sum(torch.exp((y - ymax) * mask) * mask, dim=1, keepdim=True)) + ymax  # (B, 1, D)
             log_q = torch.logsumexp(y, dim=2, keepdim=True) * mask   # (B, N, 1)
             a = a2[n] / (a2[n] + a11) * (a / a11 + log_p0 - log_p)
@@ -128,7 +123,7 @@ def uot_badmm(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
         # update logS
         y = (z + rho[n] * log_t) / (a1[n] + rho[n])  # (B, N, D)
         ymin, _ = torch.min(y, dim=1, keepdim=True)
-        ymax, _ = torch.max(y - mask * ymin + ymin, dim=1, keepdim=True)  # (B, 1, D)
+        ymax, _ = torch.max(ymin - mask * ymin + y, dim=1, keepdim=True)  # (B, 1, D)
         # (B, N, D)
         log_s = mask * (
                 log_mu - torch.log(torch.sum(torch.exp((y - ymax) * mask) * mask, dim=1, keepdim=True)) - ymax) + y
@@ -146,7 +141,7 @@ def uot_badmm(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
         # y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
         y = ((rho[n] * log_eta + a3[n] * log_q0 - z2) / (rho[n] + a3[n]))  # (B, N, 1)
         ymin, _ = torch.min(y, dim=1, keepdim=True)
-        ymax, _ = torch.max(y - mask * ymin + ymin, dim=1, keepdim=True)  # (B, 1, D)
+        ymax, _ = torch.max(ymin - mask * ymin + y, dim=1, keepdim=True)  # (B, 1, D)
         log_eta = (y - torch.log(
             torch.sum(torch.exp((y - ymax) * mask) * mask, dim=1, keepdim=True)) - ymax) * mask  # (B, N, 1)
         # update dual variables
@@ -197,7 +192,7 @@ def rot_badmm(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Ten
         tmp2 = torch.matmul(tmp1, c1)
         y = (z + a0[n] * tmp2 + rho[n] * log_t) / (a1[n] + rho[n])  # (B, N, D)
         ymin, _ = torch.min(y, dim=1, keepdim=True)
-        ymax, _ = torch.max(y - mask * ymin + ymin, dim=1, keepdim=True)  # (B, 1, D)
+        ymax, _ = torch.max(ymin - mask * ymin + y, dim=1, keepdim=True)  # (B, 1, D)
         # (B, N, D)
         log_s = mask * (
                 log_mu - torch.log(torch.sum(torch.exp((y - ymax) * mask) * mask, dim=1, keepdim=True)) - ymax) + y
@@ -215,7 +210,7 @@ def rot_badmm(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Ten
         # y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
         y = ((rho[n] * log_eta + a3[n] * log_q0 - z2) / (rho[n] + a3[n])) * mask  # (B, N, 1)
         ymin, _ = torch.min(y, dim=1, keepdim=True)
-        ymax, _ = torch.max(y - mask * ymin + ymin, dim=1, keepdim=True)  # (B, 1, D)
+        ymax, _ = torch.max(ymin - mask * ymin + y, dim=1, keepdim=True)  # (B, 1, D)
         log_eta = (y - torch.log(
             torch.sum(torch.exp((y - ymax) * mask) * mask, dim=1, keepdim=True)) - ymax) * mask  # (B, N, 1)
         # update dual variables
@@ -278,7 +273,7 @@ def uot_badmm2(x: torch.Tensor, p0: torch.Tensor, q0: torch.Tensor,
         # y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
         y = ((rho[n] * log_eta + a3[n] * log_q0 - z2) / (rho[n] + a3[n])) * mask  # (B, N, 1)
         ymin, _ = torch.min(y, dim=1, keepdim=True)
-        ymax, _ = torch.max(y - mask * ymin + ymin, dim=1, keepdim=True)  # (B, 1, D)
+        ymax, _ = torch.max(ymin - mask * ymin + y, dim=1, keepdim=True)  # (B, 1, D)
         log_eta = (y - torch.log(
             torch.sum(torch.exp((y - ymax) * mask) * mask, dim=1, keepdim=True)) - ymax) * mask  # (B, N, 1)
         # update dual variables
@@ -330,7 +325,7 @@ def rot_badmm2(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Te
         tmp2 = torch.matmul(tmp1, c1)
         y = (z + a0[n] * tmp2 - a1[n] * torch.exp(log_t) * mask) / rho[n] + log_t  # (B, N, D)
         ymin, _ = torch.min(y, dim=1, keepdim=True)
-        ymax, _ = torch.max(y - mask * ymin + ymin, dim=1, keepdim=True)  # (B, 1, D)
+        ymax, _ = torch.max(ymin - mask * ymin + y, dim=1, keepdim=True)  # (B, 1, D)
         # (B, N, D)
         log_s = mask * (
                 log_mu - torch.log(torch.sum(torch.exp((y - ymax) * mask) * mask, dim=1, keepdim=True)) - ymax) + y
@@ -348,7 +343,7 @@ def rot_badmm2(x: torch.Tensor, c1: torch.Tensor, c2: torch.Tensor, p0: torch.Te
         # y = (rho * log_eta + rho * log_eta2 + a3 * log_q0 - 2 * z2) / (2 * rho + a3)  # (B, N, 1)
         y = ((rho[n] * log_eta + a3[n] * log_q0 - z2) / (rho[n] + a3[n])) * mask  # (B, N, 1)
         ymin, _ = torch.min(y, dim=1, keepdim=True)
-        ymax, _ = torch.max(y - mask * ymin + ymin, dim=1, keepdim=True)  # (B, 1, D)
+        ymax, _ = torch.max(ymin - mask * ymin + y, dim=1, keepdim=True)  # (B, 1, D)
         log_eta = (y - torch.log(
             torch.sum(torch.exp((y - ymax) * mask) * mask, dim=1, keepdim=True)) - ymax) * mask  # (B, N, 1)
         # update dual variables

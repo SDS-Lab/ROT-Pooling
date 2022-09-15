@@ -31,7 +31,7 @@ def to_sparse_batch(x: torch.Tensor, mask: torch.Tensor = None):
 class ROTPooling(nn.Module):
     def __init__(self, dim: int, a0: float = None, a1: float = None, a2: float = None, a3: float = None,
                  rho: float = None, num: int = 4, eps: float = 1e-8, f_method: str = 'badmm-e',
-                 p0: str = 'fixed', q0: str = 'fixed', same_para: bool = False):
+                 p0: str = 'fixed', q0: str = 'fixed', same_para: bool = False, bias: bool = True):
         super(ROTPooling, self).__init__()
         self.dim = dim
         self.eps = eps
@@ -40,6 +40,7 @@ class ROTPooling(nn.Module):
         self.p0 = p0
         self.q0 = q0
         self.same_para = same_para
+        self.bias = bias
 
         if rho is None:
             if self.same_para:
@@ -139,15 +140,17 @@ class ROTPooling(nn.Module):
         if a3.shape[0] == 1:
             a3 = a3.repeat(self.num)
         trans = self.rot(x, c1, c2, p0, q0, a0, a1, a2, a3, rho, mask)  # (B, Nmax, D)
-        # frot = self.dim * x * trans * mask  # (B, Nmax, D)
-        frot = x * trans * mask
+        if self.bias:
+            frot = self.dim * x * (trans - torch.mean(trans, dim=1, keepdim=True)) * mask
+        else:
+            frot = self.dim * x * trans * mask  # (B, Nmax, D)
         return torch.sum(frot, dim=1, keepdim=False)  # (B, D)
 
 
 class UOTPooling(nn.Module):
     def __init__(self, dim: int, a1: float = None, a2: float = None, a3: float = None, rho: float = None,
                  num: int = 4, eps: float = 1e-8, f_method: str = 'badmm-e',
-                 p0: str = 'fixed', q0: str = 'fixed', same_para: bool = False):
+                 p0: str = 'fixed', q0: str = 'fixed', same_para: bool = False, bias: bool = True):
         super(UOTPooling, self).__init__()
         self.dim = dim
         self.eps = eps
@@ -156,6 +159,7 @@ class UOTPooling(nn.Module):
         self.p0 = p0
         self.q0 = q0
         self.same_para = same_para
+        self.bias = bias
 
         if rho is None:
             if self.same_para:
@@ -239,6 +243,8 @@ class UOTPooling(nn.Module):
         if a3.shape[0] == 1:
             a3 = a3.repeat(self.num)
         trans = self.uot(x, p0, q0, a1, a2, a3, rho, mask)  # (B, Nmax, D)
-        # frot = self.dim * x * trans * mask  # (B, Nmax, D)
-        frot = x * trans * mask  # (B, Nmax, D)
+        if self.bias:
+            frot = self.dim * x * (trans - torch.mean(trans, dim=1, keepdim=True)) * mask
+        else:
+            frot = self.dim * x * trans * mask  # (B, Nmax, D)
         return torch.sum(frot, dim=1, keepdim=False)  # (B, D)
