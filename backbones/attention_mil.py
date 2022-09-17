@@ -11,12 +11,14 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch_geometric.data import Data
 from torch_geometric.nn import global_add_pool, global_max_pool, global_mean_pool
+from torch_geometric.loader import DataLoader
 
 import random
 import os
 import sys
 sys.path.append("..")
 import pooling as Pooling
+
 
 def arg_parse():
     parser = argparse.ArgumentParser()
@@ -29,7 +31,7 @@ def arg_parse():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=50,
+        default=100,
         metavar="N",
         help="number of epochs to train (default: 20)",
     )
@@ -45,6 +47,12 @@ def arg_parse():
         type=float,
         default=0.005,
         help="weight_decay (default: 0.005)",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=128,
+        help="batch size (default: 128)",
     )
     parser.add_argument(
         "--seed", type=int, default=1, metavar="S", help="random seed (default: 1)"
@@ -65,8 +73,9 @@ def arg_parse():
     parser.add_argument("--f_method", type=str, default="badmm-e")
     return parser.parse_args()
 
+
 def load_mil_data_mat(
-    dataset, n_folds, normalize: bool = True, split: float = 0.75, seed: int = 1):
+    dataset, n_folds, batch_size: int, normalize: bool = True, split: float = 0.75, seed: int = 1):
     data = sio.loadmat(dataset + ".mat")
     instances = data["data"]
     bags = []
@@ -93,13 +102,13 @@ def load_mil_data_mat(
         bags_fea.append(Data(x=bags[i], y=labels[i]))
 
     kf = KFold(n_splits=n_folds, shuffle=True, random_state=None)
-    datasets = []
+    dataloaders = []
     for train_idx, test_idx in kf.split(bags_fea):
-        dataset = {}
-        dataset["train"] = [bags_fea[ibag] for ibag in train_idx]
-        dataset["test"] = [bags_fea[ibag] for ibag in test_idx]
-        datasets.append(dataset)
-    return datasets
+        dataloader = {}
+        dataloader["train"] = DataLoader([bags_fea[ibag] for ibag in train_idx], batch_size=batch_size, shuffle=True)
+        dataloader["test"] = DataLoader([bags_fea[ibag] for ibag in test_idx], batch_size=batch_size, shuffle=False)
+        dataloaders.append(dataloader)
+    return dataloaders
 
 
 def get_dim(dataset):
@@ -160,13 +169,13 @@ class Net(nn.Module):
             self.pooling = Pooling.DeepSet(64, 64)
         self.classifier = nn.Sequential(nn.Linear(64, 1), nn.Sigmoid())
 
-    def forward(self, x):
-        x.cuda()
-        batch = []
-        for i in range(x.shape[0]):
-            batch.append(0)
-        batch = np.array(batch)
-        batch = torch.from_numpy(batch).cuda()
+    def forward(self, x, batch):
+        # x.cuda()
+        # batch = []
+        # for i in range(x.shape[0]):
+        #     batch.append(0)
+        # batch = np.array(batch)
+        # batch = torch.from_numpy(batch).cuda()
         H = self.feature_extractor_part1(x)
         A = []
         # M = torch.mm(A, H)  # KxL
@@ -188,22 +197,20 @@ class Net(nn.Module):
 
         return Y_prob, Y_hat, A
 
-
-    def calculate_classification_error(self, X, Y):
+    def calculate_classification_error(self, X, batch, Y):
         Y = Y.float()
-        _, Y_hat, _ = self.forward(X)
+        _, Y_hat, _ = self.forward(X, batch)
         error = 1.0 - Y_hat.eq(Y).cpu().float().mean().item()
+        acc_num = Y_hat.eq(Y).cpu().float().sum().item()
+        return error, Y_hat, acc_num
 
-        return error, Y_hat
-
-    def calculate_objective(self, X, Y):
+    def calculate_objective(self, X, batch, Y):
         Y = Y.float()
-        Y_prob, _, A = self.forward(X)
+        Y_prob, _, A = self.forward(X, batch)
         Y_prob = torch.clamp(Y_prob, min=1e-5, max=1.0 - 1e-5)
         neg_log_likelihood = -1.0 * (
             Y * torch.log(Y_prob) + (1.0 - Y) * torch.log(1.0 - Y_prob)
         )  # negative log bernoulli
-
         return neg_log_likelihood, A
 
 
@@ -211,19 +218,19 @@ def train(model, optimizer, train_bags):
     model.train()
     train_loss = 0.0
     train_error = 0.0
-    for idx, data in enumerate(train_bags):
-        data_a = data
+    for idx, data_a in enumerate(train_bags):
         data = data_a.x
         bag_label = data_a.y
+        batch = data_a.batch
         if args.cuda:
-            data, bag_label = data.cuda(), bag_label.cuda()
-        data, bag_label = Variable(data), Variable(bag_label)
+            data, bag_label, batch = data.cuda(), bag_label.cuda(), batch.cuda()
+        # data, bag_label = Variable(data), Variable(bag_label)
         # reset gradients
         optimizer.zero_grad()
         # calculate loss and metrics
-        loss, _ = model.calculate_objective(data, bag_label)
+        loss, _ = model.calculate_objective(data, batch, bag_label)
         train_loss += loss.item()
-        error, _ = model.calculate_classification_error(data, bag_label)
+        error, _, acc_num = model.calculate_classification_error(data, batch, bag_label)
         train_error += error
         # backward pass
         loss.backward()
@@ -240,36 +247,29 @@ def acc_test(model, test_bags):
     model.eval()
     test_loss = 0.0
     test_error = 0.0
-    true_labels = []
-    pre_labels = []
-    for batch_idx, data in enumerate(test_bags):
-        data_a = data
+    num_bags = 0
+    num_corrects = 0
+    for batch_idx, data_a in enumerate(test_bags):
         data = data_a.x
         bag_label = data_a.y
+        batch = data_a.batch
+        num_bags += bag_label.shape[0]
         if args.cuda:
-            data, bag_label = data.cuda(), bag_label.cuda()
-        data, bag_label = Variable(data), Variable(bag_label)
-        true_labels.append(bag_label)
-        loss, attention_weights = model.calculate_objective(data, bag_label)
+            data, bag_label, batch = data.cuda(), bag_label.cuda(), batch.cuda()
+        # data, bag_label = Variable(data), Variable(bag_label)
+        loss, attention_weights = model.calculate_objective(data, batch, bag_label)
         test_loss += loss.item()
-        error, predicted_label = model.calculate_classification_error(data, bag_label)
-        pre_labels.append(predicted_label)
+        error, predicted_label, acc_num = model.calculate_classification_error(data, batch, bag_label)
         test_error += error
-    right_num = 0
-    for i in range(len(true_labels)):
-        if true_labels[i] == True:
-            true_labels[i] = 1
-        else:
-            true_labels[i] = 0
-        if true_labels[i] == pre_labels[i]:
-            right_num = right_num + 1
+        num_corrects += acc_num
+
     test_error /= len(test_bags)
     test_loss /= len(test_bags)
-    test_acc = right_num / len(true_labels)
+    test_acc = num_corrects / num_bags
     return test_error, test_loss, test_acc
 
 
-def mil_Net(dataset):
+def mil_Net(dataloader):
     dim = get_dim(args.DS)
     pooling_layer = args.pooling_layer
     a1 = args.a1
@@ -288,8 +288,8 @@ def mil_Net(dataset):
     optimizer = optim.SGD(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=0.9
     )
-    train_bags = dataset["train"]
-    test_bags = dataset["test"]
+    train_bags = dataloader["train"]
+    test_bags = dataloader["test"]
     print(len(train_bags))
     print(len(test_bags))
     t1 = time.time()
@@ -344,10 +344,10 @@ if __name__ == "__main__":
         np.random.seed(seed[irun])
         random.seed(seed[irun])
 
-        dataset = load_mil_data_mat(dataset=args.DS, n_folds=n_folds, normalize=True)
+        dataloaders = load_mil_data_mat(dataset=args.DS, n_folds=n_folds, normalize=True, batch_size=args.batch_size)
         for ifold in range(n_folds):
             print("run=", irun, "  fold=", ifold)
-            acc[irun][ifold] = mil_Net(dataset[ifold])
+            acc[irun][ifold] = mil_Net(dataloaders[ifold])
     print("mi-net mean accuracy = ", np.mean(acc))
     print("std = ", np.std(acc))
     with open('logs/log_' + log_dir, 'a+') as f:
@@ -358,4 +358,4 @@ if __name__ == "__main__":
         f.write('{}\n'.format(args.f_method))
         f.write('{}\n'.format(paras_UOTpoolong))
         f.write('{}\n'.format(np.mean(acc)))
-        f.write('{}\n'.format( np.std(acc)))
+        f.write('{}\n'.format(np.std(acc)))
