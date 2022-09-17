@@ -31,6 +31,7 @@ poolings = ['add_pooling',
 run = False
 num = 4
 Dim = [10,50,100,250,500]
+SampN = [10, 50, 100, 250, 500]
 trial = 10
 batch_size =10
 if run:
@@ -131,15 +132,14 @@ if run:
 
     #samples
     dim = 50
-    sampleN = [10, 50, 100, 250, 500]
-    runtime_dim = np.zeros((len(sampleN), len(poolings), trial))
-    for i in range(len(sampleN)):
+    runtime_dim = np.zeros((len(SampN), len(poolings), trial))
+    for i in range(len(SampN)):
         batch = []
         for m in range(batch_size):
-            for n in range(sampleN[i]):
+            for n in range(SampN[i]):
                 batch.append(m)
         batch = torch.tensor(batch)
-        X = torch.randn(batch_size * sampleN[i], dim)
+        X = torch.randn(batch_size * SampN[i], dim)
         for pooling in range(len(poolings)):
             for n in range(trial):
                 print('Sample{}-Pooling{}-Trial {}/{}'.format(Dim[i], poolings[pooling], n + 1, trial))
@@ -246,6 +246,6 @@ else:
     print("end")
     colors = ['red', 'blue', 'green', 'black']
     names = poolings[10:14]
-    utils.visualize_errorbar_curve(xs=Dim, ms=runtime_sample_mean, vs=runtime_sample_std, colors=colors, labels=names,
-                                   xlabel='Dim', ylabel='Runtime (second)',
+    utils.visualize_errorbar_curve(xs=SampN, ms=runtime_sample_mean, vs=runtime_sample_std, colors=colors, labels=names,
+                                   xlabel='Sample', ylabel='Runtime (second)',
                                    dst=os.path.join('results', 'num_' + str(num) + '_runtime_sample.pdf'))
