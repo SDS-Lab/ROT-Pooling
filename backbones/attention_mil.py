@@ -170,15 +170,7 @@ class Net(nn.Module):
         self.classifier = nn.Sequential(nn.Linear(64, 1), nn.Sigmoid())
 
     def forward(self, x, batch):
-        # x.cuda()
-        # batch = []
-        # for i in range(x.shape[0]):
-        #     batch.append(0)
-        # batch = np.array(batch)
-        # batch = torch.from_numpy(batch).cuda()
         H = self.feature_extractor_part1(x)
-        A = []
-        # M = torch.mm(A, H)  # KxL
         if self.pooling_layer == "add_pooling":
             M = global_add_pool(H, batch)
         elif self.pooling_layer == "mean_pooling":
@@ -195,23 +187,23 @@ class Net(nn.Module):
         Y_prob = self.classifier(M)
         Y_hat = torch.ge(Y_prob, 0.5).float()
 
-        return Y_prob, Y_hat, A
+        return Y_prob, Y_hat
 
     def calculate_classification_error(self, X, batch, Y):
         Y = Y.float()
-        _, Y_hat, _ = self.forward(X, batch)
+        _, Y_hat = self.forward(X, batch)
         error = 1.0 - Y_hat.eq(Y).cpu().float().mean().item()
         acc_num = Y_hat.eq(Y).cpu().float().sum().item()
         return error, Y_hat, acc_num
 
     def calculate_objective(self, X, batch, Y):
         Y = Y.float()
-        Y_prob, _, A = self.forward(X, batch)
+        Y_prob, _ = self.forward(X, batch)
         Y_prob = torch.clamp(Y_prob, min=1e-5, max=1.0 - 1e-5)
         neg_log_likelihood = -1.0 * (
             Y * torch.log(Y_prob) + (1.0 - Y) * torch.log(1.0 - Y_prob)
         )  # negative log bernoulli
-        return neg_log_likelihood, A
+        return neg_log_likelihood
 
 
 def train(model, optimizer, train_bags):
@@ -224,7 +216,6 @@ def train(model, optimizer, train_bags):
         batch = data_a.batch
         if args.cuda:
             data, bag_label, batch = data.cuda(), bag_label.cuda(), batch.cuda()
-        # data, bag_label = Variable(data), Variable(bag_label)
         # reset gradients
         optimizer.zero_grad()
         # calculate loss and metrics
@@ -256,12 +247,12 @@ def acc_test(model, test_bags):
         num_bags += bag_label.shape[0]
         if args.cuda:
             data, bag_label, batch = data.cuda(), bag_label.cuda(), batch.cuda()
-        # data, bag_label = Variable(data), Variable(bag_label)
-        loss, attention_weights = model.calculate_objective(data, batch, bag_label)
-        test_loss += loss.item()
-        error, predicted_label, acc_num = model.calculate_classification_error(data, batch, bag_label)
-        test_error += error
-        num_corrects += acc_num
+        with torch.no_grad():
+            loss, attention_weights = model.calculate_objective(data, batch, bag_label)
+            test_loss += loss.item()
+            error, predicted_label, acc_num = model.calculate_classification_error(data, batch, bag_label)
+            test_error += error
+            num_corrects += acc_num
 
     test_error /= len(test_bags)
     test_loss /= len(test_bags)
@@ -326,11 +317,9 @@ if __name__ == "__main__":
     print("Load Train and Test Set")
     loader_kwargs = {"num_workers": 1, "pin_memory": True} if args.cuda else {}
     log_dir = (args.DS).split("/")[-1]
-    # run = 5
-    # n_folds = 10
+
     run = 1
     n_folds = 5
-    #seed = [0, 1, 2, 3, 4]
     seed = [0]
     acc = np.zeros((run, n_folds), dtype=float)
     for irun in range(run):
