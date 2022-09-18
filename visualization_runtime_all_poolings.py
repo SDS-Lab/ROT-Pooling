@@ -29,13 +29,13 @@ poolings = ['add_pooling',
             'uot_pooling_badmm-q']
 run = False
 num = 1
-Dim = [10,50,100,250,500]
-SampN = [50, 100, 250, 500, 1000]
+Dim = [10, 50, 100, 250, 500]
+SampN = [50, 100, 250, 500]
 trial = 10
-batch_size =100
+batch_size = 100
 if run:
-    sampleN = 500
-    batch =[]
+    sampleN = 50
+    batch = []
     for i in range(batch_size):
         for j in range(sampleN):
             batch.append(i)
@@ -103,7 +103,7 @@ if run:
                     runtime_dim[i, pooling, n] = time.time() - since
                 if poolings[pooling] == 'SAGPooling':
                     edge_index = []
-                    edge_index_1=[]
+                    edge_index_1 = []
                     for index in range(X.size(0)):
                         edge_index_1.append(index)
                     edge_index_1 = torch.tensor(edge_index_1)
@@ -264,7 +264,7 @@ if run:
                     runtime_dim[i, pooling, n] = time.time() - since
     np.save(os.path.join('results', 'num_' + str(num) + '_poolings_runtime_sample.npy'), runtime_dim)
 else:
-    #dims
+    # dims
     runtime_dim = np.load(os.path.join('results', 'num_' + str(num) + '_poolings_runtime_dim.npy'))
     runtime_dim = runtime_dim[:, 3:, :]
     runtime_dim_mean = np.mean(runtime_dim, axis=2)
@@ -277,7 +277,7 @@ else:
                                    xlabel='Dim', ylabel='Runtime (second)',
                                    dst=os.path.join('results', 'num_' + str(num) + '_runtime_dim.pdf'))
 
-    #samples
+    # samples
     runtime_sample = np.load(os.path.join('results', 'num_' + str(num) + '_poolings_runtime_sample.npy'))
     runtime_sample = runtime_sample[:, 3:, :]
     runtime_sample_mean = np.mean(runtime_sample, axis=2)
