@@ -32,7 +32,7 @@ num = 1
 Dim = [10, 50, 100, 250, 500]
 SampN = [50, 100, 250, 500]
 trial = 10
-batch_size = 100
+batch_size = 50
 if run:
     sampleN = 50
     batch = []
