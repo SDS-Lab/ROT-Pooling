@@ -9,7 +9,7 @@ Regularized Optimal Transport Layers for Generalized Global Pooling Operations
 ## Training & Evaluation
 
 
-###attention_mil
+#attention_mil
 
 ```
 python attention_mil.py --DS 'datasets/messidor' --pooling_layer 'uot_pooling' --f_method 'sinkhorn' --num 4 
