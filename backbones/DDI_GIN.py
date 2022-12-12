@@ -103,7 +103,6 @@ class Net(torch.nn.Module):
                        Linear(dim_h, dim_h), ReLU()))
 
         self.lin1 = torch.nn.Linear(64, 128)
-        # 第二个pooling后
         self.lin2 = torch.nn.Linear(128, 1)
 
         # for pooling1
@@ -237,7 +236,6 @@ class Net(torch.nn.Module):
             torch.backends.cudnn.enabled = False
             x = self.pooling(x, nodes_orders)
             x = self.dense(x)
-        # 20221205添加到DDI的
         elif self.pooling_layer == 'SAGPooling':
             x, _, _, batch_graph, _, _ = self.pooling(x, edge_index, batch=nodes_orders)
             x = global_add_pool(x, batch_graph)
@@ -263,7 +261,6 @@ class Net(torch.nn.Module):
             torch.backends.cudnn.enabled = False
             x = self.pooling2(x, batch_orders)
             x = self.dense2(x)
-        # 20221205添加到DDI的
         elif self.pooling_layer == 'SAGPooling':
             # pooling2
             x = global_add_pool(x, batch_orders)
@@ -351,7 +348,6 @@ def evaluate(model, crit, loader, dataset, device):
 def run(args,seed):
     print("begin")
     setup_seed(seed)
-    # 数据读取和分割
     dataset = FearsGraphDataset(root="fears", name="fears")
     dataset = dataset.data
     random.shuffle(dataset)
@@ -361,7 +357,6 @@ def run(args,seed):
     train_dataset = dataset[:train_set_len]
     val_dataset = dataset[train_set_len : valid_set_len + train_set_len]
     test_dataset = dataset[valid_set_len + train_set_len :]
-    # test数据
     print(len(dataset))
     print(len(train_dataset))
     print(len(val_dataset))
