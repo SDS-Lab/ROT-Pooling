@@ -1,19 +1,30 @@
-import os
-import util
-import random
-import logging
-import warnings
-import argparse
-import numpy as np
 import torch.nn.functional as F
-from dataprocess_fears_new import *
-from sklearn.metrics import roc_auc_score
+import random
+import util
+import numpy as np
 from torch_geometric.data import DataLoader
 from torch.nn import Linear, Sequential, BatchNorm1d, ReLU
-from torch_geometric.nn import (GINConv, global_add_pool, global_max_pool, global_mean_pool, SAGPooling, ASAPooling)
+from torch_geometric.nn import (
+    GCNConv,
+    GINConv,
+    global_add_pool,
+    global_max_pool,
+    global_mean_pool,
+    SAGPooling,
+    ASAPooling,
+)
+from sklearn.metrics import roc_auc_score
+from dataprocess_fears import *
+import argparse
+import os
+import warnings
+import logging
+os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
+
 logging.getLogger().setLevel(logging.INFO)
 warnings.filterwarnings("ignore")
 import pooling as Pooling
+
 
 def arg_parse():
     parser = argparse.ArgumentParser()
@@ -21,6 +32,7 @@ def arg_parse():
     parser.add_argument("--seed", type=int, default=1, help="seed")
     parser.add_argument("--epoch", type=int, default=40, help="epoch")
     parser.add_argument("--dataset", type=str, default="fears", help="dataset")
+    # for uot-pooling
     parser.add_argument("--a1", type=float, default=None)
     parser.add_argument("--a2", type=float, default=None)
     parser.add_argument("--a3", type=float, default=None)
@@ -30,10 +42,10 @@ def arg_parse():
     parser.add_argument("--num", type=int, default=4)
     parser.add_argument("--p0", type=str, default="fixed")
     parser.add_argument("--q0", type=str, default="fixed")
-    parser.add_argument("--f_method", type=str, default="badmm-e")
+    parser.add_argument("--f_method", type=str, default="sinkhorn")
     parser.add_argument("--eps", type=float, default=1e-18)
     parser.add_argument(
-        "--pooling_layer", help="pooling_layer", default="add_pooling", type=str
+        "--pooling_layer", help="pooling_layer", default="SAGPooling", type=str
     )
     return parser.parse_args()
 
@@ -47,37 +59,51 @@ def setup_seed(seed):
     np.random.seed(seed)
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
+    # torch.use_deterministic_algorithms(True)
 
 class Net(torch.nn.Module):
-    def __init__(self, pooling_layer, a1, a2, a3, rho, p0, q0, num, eps, same_para, f_method):
+    def __init__(
+        self,
+        pooling_layer,
+        a1,
+        a2,
+        a3,
+        rho,
+        p0,
+        q0,
+        num,
+        eps,
+        same_para,
+        f_method,
+    ):
         super(Net, self).__init__()
         self.a1 = a1
         self.a2 = a2
         self.a3 = a3
+        self.f_method = f_method
         self.rho = rho
+        self.same_para = same_para
         self.p0 = p0
         self.q0 = q0
         self.num = num
         self.eps = eps
-        self.f_method = f_method
-        self.same_para = same_para
+        self.rho = rho
         self.pooling_layer = pooling_layer
         dim_h = 64
-        #GIN model
+        #gin
         self.conv1 = GINConv(
-                        Sequential(Linear(30, dim_h),
-                        BatchNorm1d(dim_h), ReLU(),
-                        Linear(dim_h, dim_h), ReLU()))
+            Sequential(Linear(30, dim_h),
+                       BatchNorm1d(dim_h), ReLU(),
+                       Linear(dim_h, dim_h), ReLU()))
         self.conv2 = GINConv(
-                        Sequential(Linear(dim_h, dim_h),
-                        BatchNorm1d(dim_h), ReLU(),
-                        Linear(dim_h, dim_h), ReLU()))
+            Sequential(Linear(dim_h, dim_h), BatchNorm1d(dim_h), ReLU(),
+                       Linear(dim_h, dim_h), ReLU()))
         self.conv3 = GINConv(
-                        Sequential(Linear(dim_h, dim_h),
-                        BatchNorm1d(dim_h), ReLU(),
-                        Linear(dim_h, dim_h), ReLU()))
+            Sequential(Linear(dim_h, dim_h), BatchNorm1d(dim_h), ReLU(),
+                       Linear(dim_h, dim_h), ReLU()))
 
         self.lin1 = torch.nn.Linear(64, 128)
+        # 第二个pooling后
         self.lin2 = torch.nn.Linear(128, 1)
 
         # for pooling1
@@ -211,10 +237,19 @@ class Net(torch.nn.Module):
             torch.backends.cudnn.enabled = False
             x = self.pooling(x, nodes_orders)
             x = self.dense(x)
+        # 20221205添加到DDI的
+        elif self.pooling_layer == 'SAGPooling':
+            x, _, _, batch_graph, _, _ = self.pooling(x, edge_index, batch=nodes_orders)
+            x = global_add_pool(x, batch_graph)
+        elif self.pooling_layer == 'ASAPooling':
+            x, _, _, batch_graph, _ = self.pooling(x, edge_index, batch=nodes_orders)
+            x = global_add_pool(x, batch_graph)
+        #
         else:
             x = self.pooling(x, nodes_orders)
 
         # pooling2
+        x_len = 128
         x = self.lin1(x)
         x = F.relu(x)
         if self.pooling_layer == "add_pooling":
@@ -228,19 +263,28 @@ class Net(torch.nn.Module):
             torch.backends.cudnn.enabled = False
             x = self.pooling2(x, batch_orders)
             x = self.dense2(x)
+        # 20221205添加到DDI的
+        elif self.pooling_layer == 'SAGPooling':
+            # pooling2
+            x = global_add_pool(x, batch_orders)
+        elif self.pooling_layer == 'ASAPooling':
+            x = global_add_pool(x, batch_orders)
+        #
         else:
             x = self.pooling2(x, batch_orders)
         x = torch.sigmoid(self.lin2(x)).squeeze(1)
         return x
 
+
 def org_batch(num):
     """
     # generate nodes_orders and
-    :param num: [[2,1][3][4,2,3]], [2,1] means a combination which has two graphs, the nodes of those graphs are 2 and 1.
+    :param num: [[2,1][3][4,2,3]],[2,1] means a combination which has two graphs, the nodes of those graphs are 2 and 1.
     :return:
-        nodes_orders: [0,0,1,2,2,2,3,3,3,3,4,4,5,5,5] responses to the nodes order in the graphs of drug combinations.
-        batch_orders: [0,0,1,2,2,2,3,3] responses to the graphs order in drug combinations.
+        nodes_orders: [0,0,1,2,2,2,3,3,3,3,4,4,5,5,5] responses to the nodes in the graphs of drug combinations.
+        batch_orders: [0,0,1,2,2,2,3,3] responses to the graphs in drug combinations.
     """
+
     nodes_order = []
     batch_order = []
     for i in range(len(num)):
@@ -260,6 +304,7 @@ def org_batch(num):
             nodes_orders.append(num_2)
         num_2 += 1
     return nodes_orders, batch_orders
+
 
 def train(model, optimizer, crit, train_loader, train_dataset, device):
     model.train()
@@ -289,6 +334,7 @@ def evaluate(model, crit, loader, dataset, device):
             loss = crit(pred, label)
             pred = pred.detach().cpu().numpy()
             label = label.detach().cpu().numpy()
+            # print(pred)
             predictions.append(pred)
             labels.append(label)
             loss_all += data_model.num_graphs * loss.item()
@@ -301,8 +347,11 @@ def evaluate(model, crit, loader, dataset, device):
     acc, pre, rec, F1, auc = util.evaluation(predictions_tensor, labels_tensor)
     return val_loss, roc_auc_score(labels, predictions), acc, pre, rec, F1, auc
 
+
 def run(args,seed):
+    print("begin")
     setup_seed(seed)
+    # 数据读取和分割
     dataset = FearsGraphDataset(root="fears", name="fears")
     dataset = dataset.data
     random.shuffle(dataset)
@@ -312,6 +361,7 @@ def run(args,seed):
     train_dataset = dataset[:train_set_len]
     val_dataset = dataset[train_set_len : valid_set_len + train_set_len]
     test_dataset = dataset[valid_set_len + train_set_len :]
+    # test数据
     print(len(dataset))
     print(len(train_dataset))
     print(len(val_dataset))
@@ -323,6 +373,7 @@ def run(args,seed):
     print("Data processing completed")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     model = Net(
         pooling_layer=args.pooling_layer,
         a1=args.a1,
@@ -342,22 +393,9 @@ def run(args,seed):
     test_metric_all = []
 
     for epoch in range(args.epoch):
-
-        loss = train(model, optimizer, crit, train_loader, train_dataset, device)
-
-        (train_val_loss,
-            train_acc,
-            train_acc2,
-            train_pre,
-            train_rec,
-            train_F1,
-            train_auc,
-        ) = evaluate(model, crit, train_loader, train_dataset, device)
-
         val_val_loss, val_acc, val_acc2, val_pre, val_rec, val_F1, val_auc = evaluate(
             model, crit, val_loader, val_dataset, device
         )
-
         (test_val_loss,
             test_acc,
             test_acc2,
@@ -366,127 +404,23 @@ def run(args,seed):
             test_F1,
             test_auc,
         ) = evaluate(model, crit, test_loader, test_dataset, device)
-
         val_acc_all.append(val_acc2)
         test_metric_all.append(
             [test_acc, test_acc2, test_pre, test_rec, test_F1, test_auc]
         )
 
-        print("---------------------------------------------------------")
-        print("Epoch: {:03d}, Loss: {:.5f}".format(epoch, loss))
-        print("                               Auc,   ACC,    Pre,   Rec,  F1,   Auc")
-        print("                               {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}".format(
-                train_acc, train_acc2, train_pre, train_rec, train_F1, train_auc))
-        print("                               {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}".format(
-                val_acc, val_acc2, val_pre, val_rec, val_F1, val_auc))
-        print(
-            "                                 {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}".format(
-                test_acc, test_acc2, test_pre, test_rec, test_F1, test_auc))
-
     best_val_epoch = np.argmax(np.array(val_acc_all))
     best_test_result = test_metric_all[best_val_epoch]
-    with open("gin_logs157/log_" + args.dataset + "_" + args.pooling_layer, "a+") as f:
-        paras_UOTpoolong = (
-            "["
-            + str(args.pooling_layer)
-            + "-"
-            + str(args.same_para)
-            + "-"
-            + str(args.f_method)
-            + "-"
-            + str(args.num)
-            + "-"
-            + str(args.a1)
-            + "-"
-            + str(args.a2)
-            + "-"
-            + str(args.a3)
-            + "-"
-            + str(args.p0)
-            + "-"
-            + str(args.q0)
-            + "-"
-            + str(args.rho)
-            + "]"
-        )
-        f.write(
-            "{},{},{},{},{}\n".format(
-                args.dataset,
-                seed,
-                args.pooling_layer,
-                paras_UOTpoolong,
-                args.epoch,
-            )
-        )
-        f.write(
-            "{:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}".format(
-                best_test_result[0],
-                best_test_result[1],
-                best_test_result[2],
-                best_test_result[3],
-                best_test_result[4],
-                best_test_result[5],
-            )
-        )
-        f.write("\n")
-        f.write("\n")
-    print("===================================================")
-    print(
-        "                               {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}".format(
-            best_test_result[0],
-            best_test_result[1],
-            best_test_result[2],
-            best_test_result[3],
-            best_test_result[4],
-            best_test_result[5],
-        )
-    )
     return best_test_result
 
 
 if __name__ == "__main__":
 
     args = arg_parse()
-
     results=[]
     for i in [0,1,2,3,4]:
-        print(i)
         results.append(run(args,i))
     result = np.mean(np.array(results), axis=0)
     std = np.std(np.array(results), axis=0)
     print(result)
     print(std)
-    with open("gin_result_logs157/log_" + args.dataset + "_" + args.pooling_layer, "a+") as f:
-        paras_UOTpoolong = (
-            "["
-            + str(args.pooling_layer)
-            + "-"
-            + str(args.same_para)
-            + "-"
-            + str(args.f_method)
-            + "-"
-            + str(args.num)
-            + "-"
-            + str(args.a1)
-            + "-"
-            + str(args.a2)
-            + "-"
-            + str(args.a3)
-            + "-"
-            + str(args.p0)
-            + "-"
-            + str(args.q0)
-            + "-"
-            + str(args.rho)
-            + "]"
-        )
-        f.write("Auc,   ACC,    Pre,   Rec,  F1,   Auc")
-        f.write("\n")
-        f.write(
-            "{}\n{}\n{}\n".format(
-                paras_UOTpoolong,
-                result,
-                std,
-            )
-        )
-        f.write("\n")

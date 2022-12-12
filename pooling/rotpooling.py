@@ -31,7 +31,7 @@ def to_sparse_batch(x: torch.Tensor, mask: torch.Tensor = None):
 class ROTPooling(nn.Module):
     def __init__(self, dim: int, a0: float = None, a1: float = None, a2: float = None, a3: float = None,
                  rho: float = None, num: int = 4, eps: float = 1e-8, f_method: str = 'badmm-e',
-                 p0: str = 'fixed', q0: str = 'fixed', same_para: bool = False, bias: bool = True):
+                 p0: str = 'fixed', q0: str = 'fixed', same_para: bool = False):
         super(ROTPooling, self).__init__()
         self.dim = dim
         self.eps = eps
@@ -40,7 +40,6 @@ class ROTPooling(nn.Module):
         self.p0 = p0
         self.q0 = q0
         self.same_para = same_para
-        self.bias = bias
 
         if rho is None:
             if self.same_para:
@@ -57,6 +56,7 @@ class ROTPooling(nn.Module):
             if self.same_para:
                 self.a0 = nn.Parameter(0.1 * torch.randn(1), requires_grad=True)
             else:
+                print("----------------------------------------")
                 self.a0 = nn.Parameter(0.1 * torch.randn(self.num), requires_grad=True)
         else:
             if self.same_para:
@@ -73,7 +73,9 @@ class ROTPooling(nn.Module):
             if self.same_para:
                 self.a1 = a1 * torch.ones(1)
             else:
-                self.a1 = a1 * torch.ones(self.num)
+                print("------better with gradient--")
+                #self.a1 = a1 * torch.ones(self.num)
+                self.a1 = nn.Parameter(a1 * torch.ones(self.num), requires_grad=True)
 
         if a2 is None:
             if self.same_para:
@@ -124,12 +126,16 @@ class ROTPooling(nn.Module):
         p0 = (torch.ones_like(x[:, 0, :]) / self.dim).unsqueeze(1)  # (B, 1, D)
         c1 = torch.matmul(x.permute(0, 2, 1), x) / x.shape[1]  # (B, D, D)
         c2 = torch.matmul(x, x.permute(0, 2, 1)) / x.shape[2]  # (B, Nmax, Nmax)
+        # 20221004
+        c1 = c1 / torch.max(c1)
+        c2 = c2 / torch.max(c2)
         rho = self.softplus(self.rho)
         if rho.shape[0] == 1:
             rho = rho.repeat(self.num)
         a0 = self.softplus(self.a0)
         if a0.shape[0] == 1:
             a0 = a0.repeat(self.num)
+
         a1 = self.softplus(self.a1)
         if a1.shape[0] == 1:
             a1 = a1.repeat(self.num)
@@ -140,17 +146,14 @@ class ROTPooling(nn.Module):
         if a3.shape[0] == 1:
             a3 = a3.repeat(self.num)
         trans = self.rot(x, c1, c2, p0, q0, a0, a1, a2, a3, rho, mask)  # (B, Nmax, D)
-        if self.bias:
-            frot = self.dim * x * (trans - torch.mean(trans, dim=1, keepdim=True)) * mask
-        else:
-            frot = self.dim * x * trans * mask  # (B, Nmax, D)
+        frot = self.dim * x * trans * mask  # (B, Nmax, D)
         return torch.sum(frot, dim=1, keepdim=False)  # (B, D)
 
 
 class UOTPooling(nn.Module):
     def __init__(self, dim: int, a1: float = None, a2: float = None, a3: float = None, rho: float = None,
                  num: int = 4, eps: float = 1e-8, f_method: str = 'badmm-e',
-                 p0: str = 'fixed', q0: str = 'fixed', same_para: bool = False, bias: bool = True):
+                 p0: str = 'fixed', q0: str = 'fixed', same_para: bool = False):
         super(UOTPooling, self).__init__()
         self.dim = dim
         self.eps = eps
@@ -159,7 +162,6 @@ class UOTPooling(nn.Module):
         self.p0 = p0
         self.q0 = q0
         self.same_para = same_para
-        self.bias = bias
 
         if rho is None:
             if self.same_para:
@@ -243,8 +245,5 @@ class UOTPooling(nn.Module):
         if a3.shape[0] == 1:
             a3 = a3.repeat(self.num)
         trans = self.uot(x, p0, q0, a1, a2, a3, rho, mask)  # (B, Nmax, D)
-        if self.bias:
-            frot = self.dim * x * (trans - torch.mean(trans, dim=1, keepdim=True)) * mask
-        else:
-            frot = self.dim * x * trans * mask  # (B, Nmax, D)
+        frot = self.dim * x * trans * mask  # (B, Nmax, D)
         return torch.sum(frot, dim=1, keepdim=False)  # (B, D)

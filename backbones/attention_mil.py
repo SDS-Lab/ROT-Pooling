@@ -8,7 +8,6 @@ from sklearn.model_selection import KFold
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.autograd import Variable
 from torch_geometric.data import Data
 from torch_geometric.nn import global_add_pool, global_max_pool, global_mean_pool
 from torch_geometric.loader import DataLoader
@@ -25,13 +24,13 @@ def arg_parse():
     parser.add_argument(
         "--DS",
         help="dataset to train on, like musk1 or fox",
-        default="datasets/Biocreative/component",
+        default="datasets/Biocreative/process",
         type=str,
     )
     parser.add_argument(
         "--epochs",
         type=int,
-        default=100,
+        default=50,
         metavar="N",
         help="number of epochs to train (default: 20)",
     )
@@ -69,7 +68,7 @@ def arg_parse():
     parser.add_argument("--k", type=int, default=4)
     parser.add_argument("--u1", type=str, default="fixed")
     parser.add_argument("--u2", type=str, default="fixed")
-    parser.add_argument("--pooling_layer", help="score_pooling", default="deepset", type=str)
+    parser.add_argument("--pooling_layer", help="score_pooling", default="uot_pooling", type=str)
     parser.add_argument("--f_method", type=str, default="badmm-e")
     return parser.parse_args()
 
@@ -190,19 +189,21 @@ class Net(nn.Module):
         return Y_prob, Y_hat
 
     def calculate_classification_error(self, X, batch, Y):
-        Y = Y.float()
+        Y = Y.float().unsqueeze(1)
         _, Y_hat = self.forward(X, batch)
-        error = 1.0 - Y_hat.eq(Y).cpu().float().mean().item()
+        error = 1.0 - Y_hat.eq(Y).cpu().float()
         acc_num = Y_hat.eq(Y).cpu().float().sum().item()
+        error = torch.sum(error)
         return error, Y_hat, acc_num
 
     def calculate_objective(self, X, batch, Y):
-        Y = Y.float()
+        Y = Y.float().unsqueeze(1)
         Y_prob, _ = self.forward(X, batch)
         Y_prob = torch.clamp(Y_prob, min=1e-5, max=1.0 - 1e-5)
         neg_log_likelihood = -1.0 * (
             Y * torch.log(Y_prob) + (1.0 - Y) * torch.log(1.0 - Y_prob)
         )  # negative log bernoulli
+        neg_log_likelihood = torch.sum(neg_log_likelihood)
         return neg_log_likelihood
 
 
@@ -210,16 +211,18 @@ def train(model, optimizer, train_bags):
     model.train()
     train_loss = 0.0
     train_error = 0.0
+    train_len = 0
     for idx, data_a in enumerate(train_bags):
         data = data_a.x
         bag_label = data_a.y
+        train_len += len(bag_label)
         batch = data_a.batch
         if args.cuda:
             data, bag_label, batch = data.cuda(), bag_label.cuda(), batch.cuda()
         # reset gradients
         optimizer.zero_grad()
         # calculate loss and metrics
-        loss, _ = model.calculate_objective(data, batch, bag_label)
+        loss= model.calculate_objective(data, batch, bag_label)
         train_loss += loss.item()
         error, _, acc_num = model.calculate_classification_error(data, batch, bag_label)
         train_error += error
@@ -229,8 +232,8 @@ def train(model, optimizer, train_bags):
         optimizer.step()
 
     # calculate loss and error for epoch
-    train_loss /= len(train_bags)
-    train_error /= len(train_bags)
+    train_loss /= train_len
+    train_error /= train_len
     return train_error, train_loss
 
 
@@ -240,22 +243,24 @@ def acc_test(model, test_bags):
     test_error = 0.0
     num_bags = 0
     num_corrects = 0
+    test_len = 0
     for batch_idx, data_a in enumerate(test_bags):
         data = data_a.x
         bag_label = data_a.y
+        test_len += len(bag_label)
         batch = data_a.batch
         num_bags += bag_label.shape[0]
         if args.cuda:
             data, bag_label, batch = data.cuda(), bag_label.cuda(), batch.cuda()
         with torch.no_grad():
-            loss, attention_weights = model.calculate_objective(data, batch, bag_label)
+            loss = model.calculate_objective(data, batch, bag_label)
             test_loss += loss.item()
             error, predicted_label, acc_num = model.calculate_classification_error(data, batch, bag_label)
             test_error += error
             num_corrects += acc_num
 
-    test_error /= len(test_bags)
-    test_loss /= len(test_bags)
+    test_error /= test_len
+    test_loss /= test_len
     test_acc = num_corrects / num_bags
     return test_error, test_loss, test_acc
 
@@ -276,8 +281,8 @@ def mil_Net(dataloader):
     model = Net(dim, pooling_layer, a1, a2, a3, rho, u1, u2, k, h)
     if args.cuda:
         model.cuda()
-    optimizer = optim.SGD(
-        model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=0.9
+    optimizer = optim.Adam(
+        model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
     train_bags = dataloader["train"]
     test_bags = dataloader["test"]
@@ -339,12 +344,3 @@ if __name__ == "__main__":
             acc[irun][ifold] = mil_Net(dataloaders[ifold])
     print("mi-net mean accuracy = ", np.mean(acc))
     print("std = ", np.std(acc))
-    with open('logs/log_' + log_dir, 'a+') as f:
-        paras_UOTpoolong = '[' + str(args.epochs) + "-" + str(args.k) + "-" + str(args.h) + "-" + str(args.a1) + "-" + str(args.a2) + "-" + str(
-            args.a3) + "-" + str(args.u1) + "-" + str(args.u2) + "-" + str(args.rho) + ']'
-        f.write('{}\n'.format(args.DS))
-        f.write('{}\n'.format(args.pooling_layer))
-        f.write('{}\n'.format(args.f_method))
-        f.write('{}\n'.format(paras_UOTpoolong))
-        f.write('{}\n'.format(np.mean(acc)))
-        f.write('{}\n'.format(np.std(acc)))

@@ -32,6 +32,7 @@ sys.path.append("..")
 import pooling as Pooling
 import warnings
 warnings.filterwarnings("ignore")
+import time
 
 def arg_parse():
     parser = argparse.ArgumentParser(description="AD-GCL TU")
@@ -57,12 +58,13 @@ def arg_parse():
     parser.add_argument("--a2", type=float, default=None)
     parser.add_argument("--a3", type=float, default=None)
     parser.add_argument("--rho", type=float, default=None)
+    parser.add_argument("--same_para", type=bool, default=False)
     parser.add_argument("--h", type=int, default=32)
     parser.add_argument("--num", type=int, default=4)
     parser.add_argument('--p0', type=str, default='fixed')
     parser.add_argument('--q0', type=str, default='fixed')
     parser.add_argument("--f_method", type=str, default="badmm-e")
-    parser.add_argument("--eps", type=float, default=1e-8)
+    parser.add_argument("--eps", type=float, default=1e-18)
     parser.add_argument("--pooling_layer", help="pooling_layer", default="rot_pooling", type=str)
     return parser.parse_args()
 
@@ -444,7 +446,7 @@ class EmbeddingEvaluation:
         test_score = self.scorer(test_y, test_raw)
 
         return train_score, val_score, test_score
-
+    #我改了这里的128 为4
     def kf_embedding_evaluation(self, encoder, dataset, folds=10, batch_size=128):
         kf_train = []
         kf_val = []
@@ -528,7 +530,7 @@ class WGINConv(MessagePassing):
 
 
 class TUEncoder(torch.nn.Module):
-    def __init__(self, num_dataset_features, pooling_layer, f_method, a1, a2, a3, rho, p0, q0, num, eps, h, emb_dim=300, num_gc_layers=5, drop_ratio=0.0,
+    def __init__(self, num_dataset_features, pooling_layer, f_method, a1, a2, a3, rho, same_para, p0, q0, num, eps, h, emb_dim=300, num_gc_layers=5, drop_ratio=0.0,
         pooling_type="standard",
         is_infograph=False,
     ):
@@ -538,6 +540,7 @@ class TUEncoder(torch.nn.Module):
         self.a3 = a3
         self.f_method = f_method
         self.rho = rho
+        self.same_para = same_para
         self.p0 = p0
         self.q0 = q0
         self.num = num
@@ -592,9 +595,9 @@ class TUEncoder(torch.nn.Module):
         if self.pooling_layer == "dynamic_pooling":
             self.pooling = Pooling.DynamicPooling(feature_pooling, 3)
         if self.pooling_layer == "uot_pooling":
-            self.pooling = Pooling.UOTPooling(dim=feature_pooling, num=num, p0=p0, q0=q0, eps=eps, a1=a1, a2=a2, a3=a3, f_method=args.f_method)
+            self.pooling = Pooling.UOTPooling(dim=feature_pooling, num=num, rho = rho, same_para=same_para, p0=p0, q0=q0, eps=eps, a1=a1, a2=a2, a3=a3, f_method=args.f_method)
         if self.pooling_layer == "rot_pooling":
-            self.pooling = Pooling.ROTPooling(dim=feature_pooling, num=num, p0=p0, q0=q0, eps=eps, a1=a1, a2=a2, a3=a3, f_method=args.f_method)
+            self.pooling = Pooling.ROTPooling(dim=feature_pooling, num=num,  rho = rho, same_para=same_para, p0=p0, q0=q0, eps=eps, a1=a1, a2=a2, a3=a3, f_method=args.f_method)
         if self.pooling_layer == "deepset":
             self.pooling = Pooling.DeepSet(feature_pooling, 32)
         if self.pooling_layer == 'GeneralizedNormPooling':
@@ -635,6 +638,8 @@ class TUEncoder(torch.nn.Module):
                 xpool = global_add_pool(xpool, batch)
             else:
                 xpool = self.pooling(x, batch)
+                #logs_temp = np.array(xpool.cpu())
+            #print(xpool)
             return xpool, x
 
         elif self.pooling_type == "layerwise":
@@ -709,7 +714,6 @@ class GInfoMinMax(torch.nn.Module):
     def forward(self, batch, x, edge_index, edge_attr, edge_weight=None):
 
         z, node_emb = self.encoder(batch, x, edge_index, edge_attr, edge_weight)
-
         z = self.proj_head(z)
         return z, node_emb
 
@@ -782,6 +786,7 @@ def run(args):
             a3=args.a3,
             f_method=args.f_method,
             rho=args.rho,
+            same_para=args.same_para,
             p0=args.p0,
             q0=args.q0,
             num=args.num,
@@ -804,6 +809,7 @@ def run(args):
             a3=args.a3,
             f_method=args.f_method,
             rho=args.rho,
+            same_para=args.same_para,
             p0=args.p0,
             q0=args.q0,
             num=args.num,
@@ -852,6 +858,7 @@ def run(args):
 
     accuracies = {"val": [], "test": []}
     for epoch in range(1, args.epochs + 1):
+        begin_time = time.time()
         model_loss_all = 0
         view_loss_all = 0
         reg_all = 0
@@ -930,6 +937,9 @@ def run(args):
             model_loss.backward()
             model_optimizer.step()
 
+        end_time = time.time()
+        print("-------------time------------")
+        print(end_time - begin_time)
         fin_model_loss = model_loss_all / len(dataloader)
         fin_view_loss = view_loss_all / len(dataloader)
         fin_reg = reg_all / len(dataloader)
@@ -960,15 +970,6 @@ def run(args):
     else:
         best_val_epoch = np.argmin(np.array(valid_curve))
         best_train = min(train_curve)
-
-    with open('logs/log_' + args.DS, 'a+') as f:
-        s = json.dumps(accuracies)
-        paras_UOTpoolong = '[' + str(args.num) + "-" + str(args.h) + "-" + str(args.a1) + "-" + str(args.a2) + "-" + str(
-            args.a3) + "-" + str(args.p0) + "-" + str(args.q0) + "-" + str(args.rho) + ']'
-        f.write('{},{},{},{},{},{},{},{},{},{}\n'.format(args.DS, args.seed, args.pooling_layer, args.f_method, args.num_gc_layers, paras_UOTpoolong, args.epochs, args.eval_interval, args.view_lr, s))
-        f.write('\n')
-        f.write('{}\n'.format(test_curve[best_val_epoch]))
-        f.write('\n')
 
     logging.info("FinishedTraining!")
     logging.info("BestEpoch: {}".format(best_val_epoch))
