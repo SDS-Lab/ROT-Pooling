@@ -9,7 +9,7 @@ import img_classifier_learning_k as icl
 import torch
 import torch.nn as nn
 import torch.nn.parallel
-import torch.backends.cudnn as cudnn
+import trch.backends.cudnn as cudnn
 import torch.distributed as dist
 import torch.optim
 from torch.optim.lr_scheduler import StepLR
@@ -25,7 +25,6 @@ model_names = sorted(name for name in models.__dict__
                      and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-#默认参数
 parser.add_argument('-data', metavar='DIR', default='imagenet_last/imagenet',
                     help='path to dataset (default: imagenet)')
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18',
