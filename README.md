@@ -1,5 +1,5 @@
 # ROT-Pooling
-Regularized Optimal Transport Layers for Generalized Global Pooling Operations. The work is an extension of "Revisiting Global Pooling through the Lens of Optimal Transport". https://arxiv.org/pdf/2201.09191.pdf
+Regularized Optimal Transport Layers for Generalized Global Pooling Operations. The work is an extension of "Revisiting Global Pooling through the Lens of Optimal Transport": https://arxiv.org/pdf/2201.09191.pdf
 
 ## Dependencies
 
