@@ -45,7 +45,7 @@ def arg_parse():
     parser.add_argument("--f_method", type=str, default="sinkhorn")
     parser.add_argument("--eps", type=float, default=1e-18)
     parser.add_argument(
-        "--pooling_layer", help="pooling_layer", default="SAGPooling", type=str
+        "--pooling_layer", help="pooling_layer", default="uot_pooling", type=str
     )
     return parser.parse_args()
 
