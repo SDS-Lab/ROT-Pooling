@@ -44,7 +44,7 @@ python resnet18_uotp.py --pooling_layer 'uot_pooling' --f_method 'badmm-e' --num
 
 ```pooling_layer``` is the pooling layer chosen for the backbone, including add_pooling, mean_pooling, max_pooling, deepset, 
 mix_pooling, gated_pooling, set_set, attention_pooling, gated_attention_pooling, dynamic_pooling, GeneralizedNormPooling,
-SAGPooling (adgcl), ASAPooling (adgcl), uot_pooling, rotpooling.
+SAGPooling, ASAPooling, OTK, SWE, WEGL, uot_pooling, rotpooling.
 
 ```f_method``` could be ```badmm-e, badmm-q, sinkhorn``` 
 
