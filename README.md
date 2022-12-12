@@ -44,7 +44,7 @@ python resnet_imagenet.py --pooling_layer 'uot_pooling' --f_method 'badmm-e' --n
 
 ```pooling_layer``` is the pooling layer chosen for the backbone, including add_pooling, mean_pooling, max_pooling, deepset, 
 mix_pooling, gated_pooling, set_set, attention_pooling, gated_attention_pooling, dynamic_pooling, GeneralizedNormPooling,
-SAGPooling, ASAPooling, OTK, SWE, WEGL, uot_pooling, rotpooling.
+SAGPooling, ASAPooling, OTK, SWE, WEGL, uot_pooling, rotpooling. uot_pooling corresponds to "ROTP(a_0=0)" and rot_pooling corresponds to "ROTP(learned a_0)"
 
 ```f_method``` could be ```badmm-e, badmm-q, sinkhorn``` 
 
