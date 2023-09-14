@@ -51,4 +51,18 @@ SAGPooling, ASAPooling, OTK, SWE, WEGL, uot_pooling, rotpooling. Uot_pooling cor
 
 ```num``` corresponds to K-step feed-forward computation. The default value is 4.
 
+## Citation
+
+If our work can help you, please cite it
+```
+@ARTICLE{10247589,
+  author={Xu, Hongteng and Cheng, Minjie},
+  journal={IEEE Transactions on Pattern Analysis and Machine Intelligence}, 
+  title={Regularized Optimal Transport Layers for Generalized Global Pooling Operations}, 
+  year={2023},
+  volume={},
+  number={},
+  pages={1-18},
+  doi={10.1109/TPAMI.2023.3314661}}
+```
 
