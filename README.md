@@ -1,5 +1,6 @@
 # ROT-Pooling
-Regularized Optimal Transport Layers for Generalized Global Pooling Operations [https://arxiv.org/pdf/2212.06339.pdf]. The work is an extension of "Revisiting Global Pooling through the Lens of Optimal Transport": https://arxiv.org/pdf/2201.09191.pdf
+* Regularized Optimal Transport Layers for Generalized Global Pooling Operations [https://arxiv.org/pdf/2212.06339.pdf]. 
+* The work is an extension of "Revisiting Global Pooling through the Lens of Optimal Transport" [https://arxiv.org/pdf/2201.09191.pdf].
 
 ## Dependencies
 
@@ -9,26 +10,26 @@ Regularized Optimal Transport Layers for Generalized Global Pooling Operations [
 ## Training & Evaluation
 
 
-#attention_mil
+* attention_mil
 
 ```
 python attention_mil.py --DS 'datasets/messidor' --pooling_layer 'uot_pooling' --f_method 'sinkhorn' --num 4 
 ```
 
 
-#adgcl
+* adgcl
 
 ```
 python adgcl.py --DS 'IMDB-BINARY' --pooling_layer 'rot_pooling' --f_method 'badmm-e' --num 4
 ```
 
-#ddi
+* ddi
 
 ```
 python ddi_gin.py --DS 'fears' --pooling_layer 'uot_pooling' --f_method 'badmm-e' --num 4
 ```
 
-#resnet-imagenet
+* resnet-imagenet
 
 
 The setting of parameters refer to github link: https://github.com/pytorch/examples/tree/main/imagenet
