@@ -37,7 +37,7 @@ The setting of parameters refer to github link: https://github.com/pytorch/examp
 python resnet_imagenet.py --pooling_layer 'uot_pooling' --f_method 'badmm-e' --num 4
 ```
 
-## parameters
+## Parameters
 
 
 ```DS``` is the dataset.
