@@ -35,7 +35,7 @@ python ddi_gin.py --DS 'fears' --pooling_layer 'uot_pooling' --f_method 'badmm-e
 The setting of parameters refer to the github link: https://github.com/pytorch/examples/tree/main/imagenet
 
 ```
-python resnet_imagenet.py --pooling_layer 'uot_pooling' --f_method 'badmm-e' --num 4
+python resnet_imagenet.py --f_method 'badmm-e' --num 4
 ```
 
 ## Parameters
