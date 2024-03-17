@@ -1,81 +1,58 @@
-import argparse
 import os
-import random
-import shutil
 import time
-import warnings
-from enum import Enum
-import img_classifier_learning_k as icl
 import torch
-import torch.nn as nn
-import torch.nn.parallel
-import trch.backends.cudnn as cudnn
-import torch.distributed as dist
+import shutil
+import random
+import warnings
+import argparse
+import numpy as np
 import torch.optim
-from torch.optim.lr_scheduler import StepLR
-import torch.multiprocessing as mp
+import torch.nn as nn
 import torch.utils.data
-import torch.utils.data.distributed
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
+import torch.nn.parallel
+import pooling as Pooling
+import torch.distributed as dist
+import torch.multiprocessing as mp
 import torchvision.models as models
+import torch.utils.data.distributed
+import torch.backends.cudnn as cudnn
+import torchvision.datasets as datasets
+import torchvision.transforms as transforms
+
+from enum import Enum
+from torch.optim.lr_scheduler import StepLR
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
                      and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
-parser.add_argument('-data', metavar='DIR', default='imagenet_last/imagenet',
-                    help='path to dataset (default: imagenet)')
-parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18',
-                    choices=model_names,
-                    help='model architecture: ' +
-                         ' | '.join(model_names) +
-                         ' (default: resnet18)')
-parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
-                    help='number of data loading workers (default: 4)')
-parser.add_argument('--epochs', default=100, type=int, metavar='N',
-                    help='number of total epochs to run')
-parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
-                    help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=256, type=int,
-                    metavar='N',
-                    help='mini-batch size (default: 256), this is the total '
-                         'batch size of all GPUs on the current node when '
-                         'using Data Parallel or Distributed Data Parallel')
-parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
-                    metavar='LR', help='initial learning rate', dest='lr')
-parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
-                    help='momentum')
-parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float,
-                    metavar='W', help='weight decay (default: 1e-4)',
+parser.add_argument('-data', metavar='DIR', default='imagenet_last/imagenet', help='path to dataset (default: imagenet)')
+parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18', choices=model_names, help='model architecture: ' +
+                         ' | '.join(model_names) + ' (default: resnet18)')
+parser.add_argument('-j', '--workers', default=4, type=int, metavar='N', help='number of data loading workers (default: 4)')
+parser.add_argument('--epochs', default=100, type=int, metavar='N', help='number of total epochs to run')
+parser.add_argument('--start-epoch', default=0, type=int, metavar='N', help='manual epoch number (useful on restarts)')
+parser.add_argument('-b', '--batch-size', default=256, type=int, metavar='N', help='mini-batch size (default: 256), this is the total '
+                         'batch size of all GPUs on the current node when ' 'using Data Parallel or Distributed Data Parallel')
+parser.add_argument('--lr', '--learning-rate', default=0.1, type=float, metavar='LR', help='initial learning rate', dest='lr')
+parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum')
+parser.add_argument('--wd', '--weight-decay', default=1e-4, type=float, metavar='W', help='weight decay (default: 1e-4)',
                     dest='weight_decay')
-parser.add_argument('-p', '--print-freq', default=10, type=int,
-                    metavar='N', help='print frequency (default: 10)')
-parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                    help='path to latest checkpoint (default: none)')
-parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
-                    help='evaluate model on validation set')
-parser.add_argument('--pretrained', dest='pretrained', action='store_true',
-                    help='use pre-trained model')
-parser.add_argument('--world-size', default=1, type=int,
-                    help='number of nodes for distributed training')
-parser.add_argument('--rank', default=0, type=int,
-                    help='node rank for distributed training')
-parser.add_argument('--dist-url', default='tcp:// ', type=str,
-                    help='url used to set up distributed training')
-parser.add_argument('--dist-backend', default='nccl', type=str,
-                    help='distributed backend')
-parser.add_argument('--seed', default=1, type=int,
-                    help='seed for initializing training. ')
-parser.add_argument('--gpu', default=None, type=int,
-                    help='GPU id to use.')
-parser.add_argument('--multiprocessing-distributed', action='store_true',
-                    help='Use multi-processing distributed training to launch '
+parser.add_argument('-p', '--print-freq', default=10, type=int, metavar='N', help='print frequency (default: 10)')
+parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
+parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true', help='evaluate model on validation set')
+parser.add_argument('--pretrained', dest='pretrained', action='store_true', help='use pre-trained model')
+parser.add_argument('--world-size', default=1, type=int, help='number of nodes for distributed training')
+parser.add_argument('--rank', default=0, type=int, help='node rank for distributed training')
+parser.add_argument('--dist-url', default='tcp:// ', type=str, help='url used to set up distributed training')
+parser.add_argument('--dist-backend', default='nccl', type=str, help='distributed backend')
+parser.add_argument('--seed', default=1, type=int, help='seed for initializing training. ')
+parser.add_argument('--gpu', default=None, type=int, help='GPU id to use.')
+parser.add_argument('--multiprocessing-distributed', action='store_true', help='Use multi-processing distributed training to launch '
                          'N processes per node, which has N GPUs. This is the '
                          'fastest way to use PyTorch for either single node or '
                          'multi node data parallel training')
-
 parser.add_argument('--flag', default='k2_0922', type=str, help='flag')
 parser.add_argument('--k', default='2', type=int, help='flag')
 parser.add_argument('--f_method', default='badmm-e', type=str, help='badmm-e')
@@ -144,7 +121,7 @@ def main_worker(gpu, ngpus_per_node, args):
         print("=> creating model '{}'".format(args.arch))
         model = models.__dict__[args.arch]()
         dim = 512
-        model = icl.replace_pooling(model, k=args.k, dim=dim, f_method=args.f_method)
+        model = replace_pooling(model, k=args.k, dim=dim, f_method=args.f_method)
 
     if not torch.cuda.is_available():
         print('using CPU, this will be slow')
@@ -459,6 +436,36 @@ def accuracy(output, target, topk=(1,)):
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
+
+class UOTPoolingImg(nn.Module):
+    def __init__(self, d: int = 512,  k: int = 4,  rho: float = None,
+                 a1: float = None, a2: float = None, a3: float = None, f_method: str='sinkhorn'):
+        super(UOTPoolingImg, self).__init__()
+        self.pooling2d = Pooling.UOTPooling(dim=d, num=k, rho=rho, a1=a1, a2=a2, a3=a3, f_method=f_method)
+
+    def forward(self, x: torch.Tensor):
+        """
+        :param x: (B, C, W, H)
+        :return:
+            y: (B, C, 1, 1)
+        """
+        b, c, w, h = x.shape
+        #print(b, c, w, h)
+        x = torch.reshape(x, (b, c, w * h))  # b x c x (wh)
+        x = x.permute(0, 2, 1)  # b x (wh) x c
+        x = torch.reshape(x, (b * w * h, c))  # (bwh) * c
+        batch = torch.LongTensor(np.zeros((b * w * h, ))).to(x.device)
+        for i in range(b):
+            batch[i*(w*h):(i+1)*(w*h)] = i
+        tmp = self.pooling2d(x, batch)
+        #print('Done')
+        return tmp.view(b, c, 1, 1)
+
+def replace_pooling(net, k, dim: int,f_method):
+    for name, layer in net.named_modules():
+        if name == 'avgpool':
+            net._modules[name] = UOTPoolingImg(k=k, d=dim, f_method=f_method)
+    return net
 
 if __name__ == '__main__':
     main()
